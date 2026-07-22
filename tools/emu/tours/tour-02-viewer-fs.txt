@@ -1,0 +1,50 @@
+# Tour 2: library + Formatting Showcase deep dive + links list + info dialog
+# boot lands in Viewer(Welcome.md)
+key 59
+key 108 108 108 108
+key 28
+sleep 1
+shot 20-library-root
+key 108 108 108 108
+shot 21-library-mid
+key 108 108
+shot 22-library-sel-fs
+key 28
+sleep 1.5
+shot 23-fs-p1
+key 108 108 108
+shot 24-fs-p2
+key 108 108 108
+shot 25-fs-p3
+key 108 108 108
+shot 26-fs-p4
+key 108 108 108
+shot 27-fs-p5
+key 108 108 108
+shot 28-fs-p6
+key 108 108 108
+shot 29-fs-p7
+key 108 108 108
+shot 30-fs-p8
+key 108 108 108
+shot 31-fs-p9
+key 108 108 108
+shot 32-fs-p10
+key 59
+key 108
+key 28
+sleep 1
+shot 33-fs-links
+key 59
+shot 34-links-menu
+key 28
+sleep 1
+shot 35-back-in-viewer
+key 59
+key 108 108 108
+key 28
+sleep 1
+shot 36-fs-info
+key 28
+sleep 0.5
+shot 37-after-info

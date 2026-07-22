@@ -1,0 +1,39 @@
+# Tour 12: (boot=Library, vault reset) settings rows, Light theme sweep, Dark restore
+key 59
+key 108 108 108 108 108 108 108
+key 28
+sleep 1
+shot 240-settings-p1
+key 108 108 108 108 108
+shot 241-settings-p2
+key 108 108 108
+shot 242-theme-row
+key 28
+shot 243-theme-cycled
+key 108 108 108 108 108 108 108 108 108 108
+shot 244-settings-bottom
+key 28
+sleep 1.5
+shot 245-light-after-save
+key 108 108 108 108
+key 28
+sleep 1.5
+shot 246-light-callouts
+key 59
+shot 247-light-viewer-menu
+key 108 108 108 108
+key 28
+sleep 1
+shot 248-light-library
+key 59
+key 108 108 108 108 108 108 108
+key 28
+sleep 1
+shot 249-light-settings
+key 108 108 108 108 108 108 108 108
+key 28
+shot 250-theme-back-dark
+key 108 108 108 108 108 108 108 108 108 108
+key 28
+sleep 1.5
+shot 251-dark-restored

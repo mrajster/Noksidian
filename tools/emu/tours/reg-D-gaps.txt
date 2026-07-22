@@ -1,0 +1,50 @@
+# Regression D (light, boot=Library root): close verification gaps.
+# B2 Welcome long frontmatter, rich notes (showcase/tables), delete-confirm dialog.
+# rows: attachments0 Daily1 Notes2 Projects3 Callouts4 CodeSamples5 FormShow6 Tables7 Welcome8
+# --- Welcome.md (B2 properties clip: "title: Welcome to Noksidian") ---
+key 108 108 108 108 108 108 108 108
+key 60
+sleep 3
+shot rD00-welcome-frontmatter
+key 108 108 108
+shot rD01-welcome-body
+# back to library
+key 59
+key 108 108 108 108
+key 59
+sleep 2
+# --- Formatting Showcase.md (rich: headings, emphasis, lists) ---
+key 108 108 108 108 108 108
+key 60
+sleep 3
+shot rD02-showcase-top
+key 108 108 108 108 108
+shot rD03-showcase-emphasis
+key 108 108 108 108 108
+shot rD04-showcase-lists
+key 59
+key 108 108 108 108
+key 59
+sleep 2
+# --- Tables and Tasks.md (checkboxes + table) ---
+key 108 108 108 108 108 108 108
+key 60
+sleep 3
+shot rD05-tables-tasks
+key 108 108 108 108 108
+shot rD06-tables-grid
+key 59
+key 108 108 108 108
+key 59
+sleep 2
+shot rD07-library
+# --- delete-confirm dialog (YES_NO) on a note: select Callouts, menu Delete (idx 3) ---
+key 108 108 108 108
+key 59
+key 108 108 108
+key 59
+sleep 2
+shot rD08-delete-confirm
+key 60
+sleep 1
+shot rD09-after-cancel-delete

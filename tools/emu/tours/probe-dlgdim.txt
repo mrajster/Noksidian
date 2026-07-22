@@ -1,0 +1,13 @@
+# open Callouts (row4), viewer menu (F1), down to Info (idx3), choose (F1)
+key 108 108 108 108
+key 60
+sleep 3
+shot pdd00-callouts
+key 59
+key 108 108 108
+key 59
+sleep 2
+shot pdd01-info-dialog-over-viewer
+key 60
+sleep 1
+shot pdd02-after-dismiss

@@ -1,0 +1,9 @@
+# current me-home theme = Dark (saved by reg-C). open Callouts (row 4), scroll.
+key 108 108 108 108
+key 60
+sleep 3
+shot pdc00-callouts-dark-top
+key 108 108 108
+shot pdc01-callouts-dark-mid
+key 108 108 108
+shot pdc02-callouts-dark-bottom

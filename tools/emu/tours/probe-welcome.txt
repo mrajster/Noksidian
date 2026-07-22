@@ -1,0 +1,8 @@
+# drift-proof: Up from root wraps to last row = Welcome.md, then F2 open
+key 103
+shot pw00-sel-welcome
+key 60
+sleep 3
+shot pw01-welcome-frontmatter
+key 108 108
+shot pw02-welcome-body

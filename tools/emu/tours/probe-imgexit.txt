@@ -1,0 +1,11 @@
+# open attachments/ (row 0), open an image, verify Back (F2) returns to library
+key 60
+sleep 2
+shot pie00-attachments
+key 108
+key 60
+sleep 3
+shot pie01-imageview
+key 60
+sleep 2
+shot pie02-after-back

@@ -1,0 +1,65 @@
+# Tour 14 (Enter-free): spaced filenames (B4), tables, wikilinks demo, image
+# open = F2(60), menu choose = F1(59)
+key 108 108 108 108 108 108
+shot 280-lib-sel-fs
+key 60
+sleep 3
+shot 281-fs-p1
+key 108 108 108
+shot 282-fs-p2
+key 108 108 108
+shot 283-fs-p3
+key 108 108 108
+shot 284-fs-p4
+key 108 108 108
+shot 285-fs-p5
+key 108 108 108
+shot 286-fs-p6
+key 59
+sleep 1
+key 108 108 108 108
+key 59
+sleep 2
+shot 287-lib-back
+key 108 108 108 108 108 108 108
+key 60
+sleep 3
+shot 288-tables-p1
+key 108 108 108
+shot 289-tables-p2
+key 108 108 108
+shot 290-tables-p3
+key 59
+sleep 1
+key 108 108 108 108
+key 59
+sleep 2
+key 108 108
+key 60
+sleep 2
+shot 291-lib-notes
+key 108 108
+key 60
+sleep 3
+shot 292-wikilinks-demo
+key 108 108 108
+shot 293-wikilinks-p2
+key 59
+sleep 1
+key 108 108 108 108
+key 59
+sleep 2
+shot 294-lib-notes-again
+key 60
+sleep 2
+shot 295-lib-root
+key 60
+sleep 2
+shot 296-lib-attachments
+key 108
+key 60
+sleep 3
+shot 297-imageview-diagram
+key 60
+sleep 2
+shot 298-after-image-back

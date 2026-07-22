@@ -1,0 +1,12 @@
+# decisive probe: F2-open vs Enter-open vs menu Today
+key 108 108
+shot q01-sel-notes
+key 60
+sleep 2
+shot q02-after-f2
+key 59
+sleep 1
+key 108 108 108 108 108
+key 28
+sleep 2
+shot q03-after-today

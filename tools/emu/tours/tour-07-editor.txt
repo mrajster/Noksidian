@@ -1,0 +1,52 @@
+# Tour 7: editor deep test on the Scratch Pad note created in tour 5
+# boot -> viewer(Welcome). Menu Back -> library
+key 59
+key 108 108 108 108
+key 28
+sleep 1
+# Scratch Pad.md is a new file: files sorted alpha -> row 8 = "Scratch Pad.md"
+# (Callouts, Code Samples, Formatting Showcase, Scratch Pad, Tables and Tasks, Welcome)
+key 108 108 108 108 108 108 108
+shot 120-lib-sel-scratch
+key 28
+sleep 1.5
+shot 121-scratch-viewer
+# open editor via right soft
+key 60
+sleep 1.5
+shot 122-editor-empty
+type Hello from the emulator tour.
+shot 123-editor-typed
+key 28
+type Second line with trailing text for caret tests.
+shot 124-editor-line2
+# caret movement: left x5, then up, insert X
+key 105 105 105 105 105
+key 103
+type X
+shot 125-editor-caret-insert
+# backspace x2
+key 14 14
+shot 126-editor-backspace
+# save via right soft
+key 60
+sleep 2
+shot 127-after-save
+# scroll the viewer to verify saved content
+key 108
+shot 128-saved-note-view
+# edit again - verify persistence + caret at start
+key 60
+sleep 1.5
+shot 129-editor-reopened
+# editor menu
+key 59
+shot 130-editor-menu
+key 60
+sleep 0.5
+# cancel out (menu -> Cancel = index 1)
+key 59
+key 108
+key 28
+sleep 1
+shot 131-after-cancel

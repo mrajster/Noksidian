@@ -1,0 +1,69 @@
+# Tour 15 (Enter-free): switch to Dark via RIGHT-cycle + F2 Save, sweep screens
+key 59
+sleep 1
+key 108 108 108 108 108 108 108
+shot 300-menu-settings-sel
+key 59
+sleep 2
+shot 301-settings-light
+key 108 108 108 108 108 108 108 108
+shot 302-theme-row-sel
+key 106
+sleep 0.5
+shot 303-theme-now-dark-label
+key 60
+sleep 2
+shot 305-library-dark
+key 108 108 108 108
+key 60
+sleep 3
+shot 306-callouts-dark-p1
+key 108 108 108
+shot 307-callouts-dark-p2
+key 59
+sleep 1
+shot 308-viewer-menu-dark
+key 108 108 108 108
+key 59
+sleep 2
+shot 309-library-dark-back
+key 59
+sleep 1
+shot 310-library-menu-dark
+key 108 108 108 108
+key 59
+sleep 1.5
+shot 311-search-input-dark
+type daily
+sleep 0.5
+shot 312-search-typed-dark
+key 60
+sleep 3
+shot 313-search-results-dark
+key 60
+sleep 3
+shot 314-search-first-opened
+key 59
+sleep 1
+key 108 108 108 108
+key 59
+sleep 2
+shot 315-after-results-back
+key 108 108 108 108 108 108 108 108
+key 60
+sleep 3
+shot 316-welcome-dark-p1
+key 108 108 108
+shot 317-welcome-dark-p2
+key 108 108 108
+shot 318-welcome-dark-p3
+key 60
+sleep 2
+shot 319-editor-dark
+key 59
+sleep 1
+shot 320-editor-menu-dark
+key 108
+key 59
+sleep 2
+shot 321-viewer-after-cancel

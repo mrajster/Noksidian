@@ -1,0 +1,13 @@
+# surgical probe: does Enter work at all?
+shot p01-boot
+key 108 108
+shot p02-sel-notes
+key 28
+sleep 2
+shot p03-after-enter
+key 59
+sleep 1
+shot p04-menu
+key 28
+sleep 2
+shot p05-after-menu-enter

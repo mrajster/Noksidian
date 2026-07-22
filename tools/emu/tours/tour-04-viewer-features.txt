@@ -1,0 +1,61 @@
+# Tour 4: tables+tasks note, image view, wikilink follow, Notes subfolder
+# boot -> viewer(Welcome). Menu Back -> library
+key 59
+key 108 108 108 108
+key 28
+sleep 1
+key 108 108 108 108 108 108 108
+shot 60-lib-sel-tables
+key 28
+sleep 1.5
+shot 61-tables-p1
+key 108 108 108
+shot 62-tables-p2
+key 108 108 108
+shot 63-tables-p3
+key 108 108 108
+shot 64-tables-p4
+# back to library, into attachments -> logo.png (image view)
+key 59
+key 108 108 108 108
+key 28
+sleep 1
+key 28
+sleep 1
+shot 65-lib-attachments
+key 108
+shot 66-lib-sel-image2
+key 28
+sleep 2
+shot 67-imageview
+key 60
+sleep 1
+shot 68-after-imageback
+# up one level via ".." (row 0 in subdir)
+key 28
+sleep 1
+shot 69-lib-root-again
+# wikilink follow: open Welcome.md (row 8), focus link with RIGHT, FIRE
+key 108 108 108 108 108 108 108 108
+key 28
+sleep 1.5
+key 106
+shot 70-welcome-linkfocus
+key 28
+sleep 1.5
+shot 71-after-linkfollow
+# into Notes folder -> Wikilinks Demo
+key 59
+key 108 108 108 108
+key 28
+sleep 1
+key 108 108
+key 28
+sleep 1
+shot 72-lib-notes
+key 108
+key 28
+sleep 1.5
+shot 73-wikilinks-demo
+key 108 108 108
+shot 74-wikilinks-p2

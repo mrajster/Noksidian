@@ -1,0 +1,9 @@
+# open SoftBreak.md (alphabetical: after Scratch Pad? order: Callouts, Code Samples,
+# Formatting Showcase, Scratch Pad, SoftBreak, Tables, Welcome). folders first (4),
+# so SoftBreak is row 4+4=8 (attachments,Daily,Notes,Projects,Callouts,CodeSamples,
+# FormShow,ScratchPad,SoftBreak). Down 8 from attachments.
+key 108 108 108 108 108 108 108 108
+shot psb00-sel
+key 60
+sleep 3
+shot psb01-viewer

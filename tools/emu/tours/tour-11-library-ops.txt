@@ -1,0 +1,51 @@
+# Tour 11: (boot=Library) menu, About, Search, Today, New folder, Sync error
+key 59
+shot 220-lib-menu
+key 108 108 108 108 108 108 108 108
+shot 221-lib-menu-about-sel
+key 28
+sleep 1
+shot 222-about
+key 28
+sleep 0.5
+key 59
+key 108 108 108 108
+key 28
+sleep 1
+shot 223-search-input
+type welcome
+shot 224-search-typed
+key 28
+sleep 2
+shot 225-search-results
+key 28
+sleep 1.5
+shot 226-search-open-first
+key 59
+key 108 108 108 108
+key 28
+sleep 1
+shot 227-lib-after-search
+key 59
+key 108 108 108 108 108
+key 28
+sleep 2
+shot 228-today-note
+key 59
+key 108 108 108 108
+key 28
+sleep 1
+key 59
+key 108
+key 28
+sleep 1
+shot 229-newfolder-input
+type tmpdir
+key 28
+sleep 1.5
+shot 230-after-newfolder
+key 59
+key 108 108 108 108 108 108
+key 28
+sleep 3
+shot 231-sync-error

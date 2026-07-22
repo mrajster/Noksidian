@@ -1,0 +1,29 @@
+# Regression B (light, boot=Library root). New note via menu, editor test.
+# Verifies: B20 input prompt, B8 editor padding, B14 editor menu Word wrap,
+# B19 input glyph clip, caret, typed fidelity, save round-trip.
+key 59
+key 59
+sleep 1.5
+shot rB00-newnote-prompt
+type Regress Note
+sleep 0.5
+shot rB01-newnote-typed
+key 60
+sleep 3
+shot rB02-editor-empty
+type The quick brown fox jumps over the lazy dog beside the calm river today.
+sleep 0.5
+shot rB03-editor-typed
+key 105 105 105 105 105
+type ZZ
+sleep 0.4
+shot rB04-caret-insert
+key 14 14
+shot rB05-backspace
+key 59
+sleep 1
+shot rB06-editor-menu
+key 60
+key 60
+sleep 3
+shot rB07-saved-viewer

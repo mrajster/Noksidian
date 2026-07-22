@@ -1,0 +1,54 @@
+# Regression A (light, boot=Library root). Menu choose=F1(59), Cancel=F2(60),
+# Open note=F2(60). Verifies: B18 folder glyphs, B7 dimText soft keys, B6 menu
+# dim, B17 menu overflow, B12 code chip, B15 spans, B3 bottom, B16 links, B13
+# dialog dim, B20 input prompt.
+shot rA00-library-root
+key 59
+shot rA01-lib-menu
+key 108 108 108 108 108 108 108 108 108
+shot rA02-lib-menu-bottom
+key 60
+# open Callouts.md (row 4)
+key 108 108 108 108
+key 60
+sleep 3
+shot rA03-callouts-top
+key 108 108 108
+shot rA04-callouts-scroll
+# viewer menu -> Links (index 1)
+key 59
+key 108
+key 59
+sleep 2
+shot rA05-links-list
+# links list menu -> Back
+key 59
+key 59
+sleep 1
+shot rA06-back-in-viewer
+# viewer menu -> Info (index 3)
+key 59
+key 108 108 108
+key 59
+sleep 2
+shot rA07-info-dialog
+key 60
+sleep 1
+# viewer menu -> Back (index 4)
+key 59
+key 108 108 108 108
+key 59
+sleep 2
+shot rA08-library
+# lib menu -> Search (index 4)
+key 59
+key 108 108 108 108
+key 59
+sleep 1.5
+shot rA09-search-prompt
+type task
+sleep 0.5
+shot rA10-search-typed
+key 60
+sleep 3
+shot rA11-search-results

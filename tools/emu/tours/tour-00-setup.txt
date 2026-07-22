@@ -1,0 +1,22 @@
+# Tour 0: first-run flow (fresh RMS) -> open E/ -> use as vault -> library
+# First VaultPicker construction enumerates FileConnection roots: SLOW (~2s).
+shot s01-welcome
+# the FIRST Enter after emulator launch is swallowed (Swing default-button
+# behavior on VK_ENTER; arrows/soft-keys are unaffected) - send it twice
+key 28
+sleep 1
+key 28
+sleep 4
+shot s02-vaultpicker-roots
+key 28
+sleep 3
+shot s03-picker-inside-e
+key 59
+sleep 1
+shot s04-picker-menu
+key 28
+sleep 4
+shot s05-vault-ready
+key 60
+sleep 3
+shot s06-library-after-setup

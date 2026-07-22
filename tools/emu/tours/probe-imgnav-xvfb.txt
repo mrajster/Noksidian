@@ -1,0 +1,23 @@
+# folder photo navigation on :99 — xdotool key names
+# open attachments/ (row 0 at root), Down to banner.png, open it
+key F2
+sleep 1
+key Down
+key F2
+sleep 3
+shot pin00-banner
+key Right
+sleep 2
+shot pin01-diagram
+key Right
+sleep 2
+shot pin02-logo
+key Right
+sleep 2
+shot pin03-wrap-banner
+key Left
+sleep 2
+shot pin04-back-logo
+key F2
+sleep 2
+shot pin05-library

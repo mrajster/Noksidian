@@ -1,0 +1,16 @@
+# which key delivers FIRE/MSK (onSelect) to the MIDlet? test in library on a note row
+# select Welcome.md (last row)
+key 108 108 108 108 108 108 108 108
+shot pf00-sel-welcome
+# candidate 1: KP_Enter (linux 96)
+key 96
+sleep 2
+shot pf01-after-kpenter
+# candidate 2: space (57)
+key 57
+sleep 1.5
+shot pf02-after-space
+# candidate 3: keypad 5 (76) - ME sometimes maps to FIRE
+key 76
+sleep 1.5
+shot pf03-after-kp5

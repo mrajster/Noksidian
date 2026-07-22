@@ -1,0 +1,39 @@
+# Regression C (boot=Library light -> switch to Dark). Settings choice cycle via
+# RIGHT arrow, Save=F2(60), exit via Settings menu->Back. Verifies dark brightness
+# (B5/tint), B12 code chip dark, B15 spans dark, B13 dialog dim dark, B8 editor.
+key 59
+key 108 108 108 108 108 108 108
+key 59
+sleep 2
+shot rC00-settings-light
+key 108 108 108 108 108 108 108 108
+shot rC01-theme-row-light
+key 106
+sleep 0.6
+shot rC02-theme-dark-preview
+key 60
+sleep 2
+shot rC03-saved-dialog-dark
+key 60
+sleep 1
+key 59
+key 108
+key 59
+sleep 2
+shot rC04-library-dark
+key 108 108 108 108
+key 60
+sleep 3
+shot rC05-callouts-dark
+key 108 108 108
+shot rC06-callouts-dark-scroll
+key 60
+sleep 2
+shot rC07-editor-dark
+key 59
+sleep 1
+shot rC08-editor-menu-dark
+key 60
+key 60
+sleep 2
+shot rC09-welcome-dark-saved

@@ -1,0 +1,32 @@
+# Tour 1: first-run flow -> vault setup -> library -> first note
+shot 01-welcome
+key 28
+sleep 1
+shot 02-vaultpicker
+key 28
+sleep 1
+shot 03-vaultpicker-inside
+key 59
+shot 04-vaultpicker-menu
+key 28
+sleep 2
+shot 05-vault-ready-dialog
+key 60
+sleep 1.5
+shot 06-library-root
+key 59
+shot 07-library-menu
+key 60
+sleep 0.5
+key 108
+shot 08-library-row2
+key 108 108 108
+shot 09-library-row5
+key 28
+sleep 1.5
+shot 10-opened-item
+key 108 108 108
+shot 11-opened-scrolled
+key 60
+sleep 1
+shot 12-back-in-library

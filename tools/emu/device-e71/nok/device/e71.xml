@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<device name="Nokia E71 (320x240)"
+        xmlns="http://www.microemu.org/2.0.2/"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.microemu.org/2.0.2/ http://www.microemu.org/2.0.2/device.xsd">
+    <img name="normal" src="normal.png" />
+    <display>
+        <iscolor>true</iscolor>
+        <numcolors>65536</numcolors>
+        <numalphalevels>256</numalphalevels>
+        <foreground>000000</foreground>
+        <!-- ffffff: microemu multiplies every pixel by this "LCD backlight"
+             color; c0c0c0 dimmed all captures to 75.3% and masked real
+             color bugs (and doubled with createRGBImage dimming = 56%). -->
+        <background>ffffff</background>
+        <rectangle>
+            <x>0</x>
+            <y>0</y>
+            <width>320</width>
+            <height>240</height>
+        </rectangle>
+        <paintable>
+            <x>0</x>
+            <y>0</y>
+            <width>320</width>
+            <height>240</height>
+        </paintable>
+    </display>
+    <fonts hint="antialiasing">
+        <font face="system" style="plain" size="small"><system name="SansSerif" style="plain" size="11"/></font>
+        <font face="system" style="plain" size="medium"><system name="SansSerif" style="plain" size="13"/></font>
+        <font face="system" style="plain" size="large"><system name="SansSerif" style="plain" size="16"/></font>
+        <font face="system" style="bold" size="small"><system name="SansSerif" style="bold" size="11"/></font>
+        <font face="system" style="bold" size="medium"><system name="SansSerif" style="bold" size="13"/></font>
+        <font face="system" style="bold" size="large"><system name="SansSerif" style="bold" size="16"/></font>
+        <font face="system" style="italic" size="small"><system name="SansSerif" style="italic" size="11"/></font>
+        <font face="system" style="italic" size="medium"><system name="SansSerif" style="italic" size="13"/></font>
+        <font face="system" style="italic" size="large"><system name="SansSerif" style="italic" size="16"/></font>
+        <font face="system" style="bold,italic" size="small"><system name="SansSerif" style="bold,italic" size="11"/></font>
+        <font face="system" style="bold,italic" size="medium"><system name="SansSerif" style="bold,italic" size="13"/></font>
+        <font face="system" style="bold,italic" size="large"><system name="SansSerif" style="bold,italic" size="16"/></font>
+        <font face="monospace" style="plain" size="small"><system name="Monospaced" style="plain" size="11"/></font>
+        <font face="monospace" style="plain" size="medium"><system name="Monospaced" style="plain" size="13"/></font>
+        <font face="monospace" style="plain" size="large"><system name="Monospaced" style="plain" size="16"/></font>
+        <font face="monospace" style="bold" size="small"><system name="Monospaced" style="bold" size="11"/></font>
+        <font face="monospace" style="bold" size="medium"><system name="Monospaced" style="bold" size="13"/></font>
+        <font face="monospace" style="bold" size="large"><system name="Monospaced" style="bold" size="16"/></font>
+        <font face="monospace" style="italic" size="small"><system name="Monospaced" style="italic" size="11"/></font>
+        <font face="monospace" style="italic" size="medium"><system name="Monospaced" style="italic" size="13"/></font>
+        <font face="monospace" style="italic" size="large"><system name="Monospaced" style="italic" size="16"/></font>
+        <font face="monospace" style="bold,italic" size="small"><system name="Monospaced" style="bold,italic" size="11"/></font>
+        <font face="monospace" style="bold,italic" size="medium"><system name="Monospaced" style="bold,italic" size="13"/></font>
+        <font face="monospace" style="bold,italic" size="large"><system name="Monospaced" style="bold,italic" size="16"/></font>
+        <font face="proportional" style="plain" size="small"><system name="SansSerif" style="plain" size="11"/></font>
+        <font face="proportional" style="plain" size="medium"><system name="SansSerif" style="plain" size="13"/></font>
+        <font face="proportional" style="plain" size="large"><system name="SansSerif" style="plain" size="16"/></font>
+        <font face="proportional" style="bold" size="small"><system name="SansSerif" style="bold" size="11"/></font>
+        <font face="proportional" style="bold" size="medium"><system name="SansSerif" style="bold" size="13"/></font>
+        <font face="proportional" style="bold" size="large"><system name="SansSerif" style="bold" size="16"/></font>
+        <font face="proportional" style="italic" size="small"><system name="SansSerif" style="italic" size="11"/></font>
+        <font face="proportional" style="italic" size="medium"><system name="SansSerif" style="italic" size="13"/></font>
+        <font face="proportional" style="italic" size="large"><system name="SansSerif" style="italic" size="16"/></font>
+        <font face="proportional" style="bold,italic" size="small"><system name="SansSerif" style="bold,italic" size="11"/></font>
+        <font face="proportional" style="bold,italic" size="medium"><system name="SansSerif" style="bold,italic" size="13"/></font>
+        <font face="proportional" style="bold,italic" size="large"><system name="SansSerif" style="bold,italic" size="16"/></font>
+    </fonts>
+    <input>
+        <haspointerevents>false</haspointerevents>
+        <haspointermotionevents>false</haspointermotionevents>
+        <hasrepeatevents>true</hasrepeatevents>
+        <!-- Soft buttons carry only the key mapping (F1 -> -6, F2 -> -7); their
+             on-screen paintable is parked off the 320x240 screen so the emulator
+             draws no gray strips over the app's own themed soft-key bar. -->
+        <softbutton name="SOFT1" alignment="LEFT" keyCode="-6">
+            <paintable><x>0</x><y>1000</y><width>1</width><height>1</height></paintable>
+            <font face="system" style="plain" size="small"/>
+            <command>BACK</command>
+            <command>EXIT</command>
+            <command>CANCEL</command>
+            <command>STOP</command>
+        </softbutton>
+        <softbutton name="SOFT2" alignment="RIGHT" keyCode="-7">
+            <paintable><x>1</x><y>1000</y><width>1</width><height>1</height></paintable>
+            <font face="system" style="plain" size="small"/>
+            <command>OK</command>
+            <command>SCREEN</command>
+            <command>ITEM</command>
+            <command>HELP</command>
+        </softbutton>
+        <button name="LEFT"/>
+        <button name="RIGHT"/>
+        <button name="UP"/>
+        <button name="DOWN"/>
+        <button name="SELECT" keyCode="-5"/>
+        <button name="0"><chars><char/><char>0</char></chars></button>
+        <button name="1"><chars><char>.</char><char>,</char><char>?</char><char>1</char></chars></button>
+        <button name="2"><chars><char>a</char><char>b</char><char>c</char><char>2</char></chars></button>
+        <button name="3"><chars><char>d</char><char>e</char><char>f</char><char>3</char></chars></button>
+        <button name="4"><chars><char>g</char><char>h</char><char>i</char><char>4</char></chars></button>
+        <button name="5"><chars><char>j</char><char>k</char><char>l</char><char>5</char></chars></button>
+        <button name="6"><chars><char>m</char><char>n</char><char>o</char><char>6</char></chars></button>
+        <button name="7"><chars><char>p</char><char>q</char><char>r</char><char>s</char><char>7</char></chars></button>
+        <button name="8"><chars><char>t</char><char>u</char><char>v</char><char>8</char></chars></button>
+        <button name="9"><chars><char>w</char><char>x</char><char>y</char><char>z</char><char>9</char></chars></button>
+        <button name="ASTERISK"><chars><char>*</char><char>+</char></chars></button>
+        <button name="POUND" modeChange="true"/>
+    </input>
+</device>

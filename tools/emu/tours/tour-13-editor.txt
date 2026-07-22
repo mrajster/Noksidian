@@ -1,0 +1,43 @@
+# Tour 13 (Enter-free where possible): new note -> editor typing/caret/save
+key 59
+sleep 1
+key 59
+sleep 1.5
+shot 260-newnote-input
+type Scratch Pad
+sleep 0.5
+shot 261-newnote-typed
+key 60
+sleep 3
+shot 262-editor-new
+type Hello from the tour. This line tests typing.
+sleep 0.5
+shot 263-editor-typed
+key 28
+type Line two with more text for wrapping tests, long enough to wrap on a 320px screen at body size.
+sleep 0.5
+shot 264-editor-line2
+key 105 105 105 105 105
+key 103
+type XX
+sleep 0.4
+shot 265-editor-caret-insert
+key 14 14
+shot 266-editor-backspace
+key 59
+sleep 1
+shot 267-editor-menu
+key 60
+sleep 0.5
+key 60
+sleep 3
+shot 268-after-save
+key 60
+sleep 2
+shot 269-editor-reopened
+key 59
+sleep 1
+key 108
+key 59
+sleep 2
+shot 270-after-cancel

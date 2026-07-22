@@ -1,0 +1,49 @@
+# Tour 6: settings screen, theme switch to Light, sweep, back to Dark
+# boot -> viewer(Welcome). Menu Back -> library -> menu -> Settings (index 7)
+key 59
+key 108 108 108 108
+key 28
+sleep 1
+key 59
+key 108 108 108 108 108 108 108
+key 28
+sleep 1
+shot 100-settings-p1
+key 108 108 108 108 108
+shot 101-settings-p2
+# Theme row = index 8 (3 more downs from 5)
+key 108 108 108
+shot 102-settings-theme-row
+key 28
+shot 103-theme-cycled
+# down to Save (18): 10 downs
+key 108 108 108 108 108 108 108 108 108 108
+shot 104-settings-bottom
+key 28
+sleep 1.5
+shot 105-after-save-light
+# library and a note in light theme
+key 108 108 108 108
+shot 106-light-library
+key 28
+sleep 1.5
+shot 107-light-note
+key 59
+shot 108-light-menu
+key 60
+# back to settings, cycle theme back to Dark, save
+key 59
+key 108 108 108 108
+key 28
+sleep 1
+key 59
+key 108 108 108 108 108 108 108
+key 28
+sleep 1
+key 108 108 108 108 108 108 108 108
+key 28
+shot 109-theme-back-dark
+key 108 108 108 108 108 108 108 108 108 108
+key 28
+sleep 1.5
+shot 110-dark-restored

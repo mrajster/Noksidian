@@ -1,0 +1,48 @@
+# Tour 10: (boot=Library) Callouts full scroll, viewer menu, Welcome links
+key 108 108 108 108
+shot 200-lib-sel-callouts
+key 28
+sleep 1.5
+shot 201-callouts-p1
+key 108 108 108
+shot 202-callouts-p2
+key 108 108 108
+shot 203-callouts-p3
+key 108 108 108
+shot 204-callouts-p4
+key 59
+shot 205-viewer-menu
+key 108 108 108 108
+key 28
+sleep 1
+shot 206-lib-back
+key 108 108 108 108 108 108 108 108
+shot 207-lib-sel-welcome
+key 28
+sleep 1.5
+shot 208-welcome-p1
+key 106
+shot 209-welcome-linkfocus1
+key 106
+shot 210-welcome-linkfocus2
+key 28
+sleep 1.5
+shot 211-linkfollow-result
+key 59
+key 108
+key 28
+sleep 1
+shot 212-links-list
+key 59
+shot 213-links-menu
+key 28
+sleep 1
+shot 214-back-from-links
+key 59
+key 108 108 108
+key 28
+sleep 1
+shot 215-info-dialog
+key 28
+sleep 0.5
+shot 216-after-info

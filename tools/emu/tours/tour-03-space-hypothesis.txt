@@ -1,0 +1,40 @@
+# Tour 3: does space-in-filename break note opening? + Callouts rendering
+# boot -> viewer(Welcome). Menu Down x4 = Back -> library (sel row 0)
+key 59
+key 108 108 108 108
+key 28
+sleep 1
+key 108 108 108 108
+shot 40-lib-sel-callouts
+key 28
+sleep 1.5
+shot 41-callouts-p1
+key 108 108 108
+shot 42-callouts-p2
+key 108 108 108
+shot 43-callouts-p3
+key 108 108 108
+shot 44-callouts-p4
+key 59
+key 108 108 108 108
+key 28
+sleep 1
+shot 45-lib-after-back
+key 108 108 108 108 108
+shot 46-lib-sel-codesamples
+key 28
+sleep 1.5
+shot 47-codesamples-p1
+key 108 108 108
+shot 48-codesamples-p2
+key 59
+key 108 108 108 108
+key 28
+sleep 1
+key 108 108 108 108 108 108 108 108
+shot 49-lib-sel-welcome
+key 28
+sleep 1.5
+shot 50-welcome-from-lib
+key 108 108 108
+shot 51-welcome-p2

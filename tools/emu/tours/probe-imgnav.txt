@@ -1,0 +1,23 @@
+# folder photo navigation: open attachments/banner.png, flip RIGHT thrice
+# (diagram, logo, wrap to banner), then LEFT (wrap back to logo), then Back.
+key 60
+sleep 1
+key 108
+key 60
+sleep 3
+shot pin00-banner
+key 106
+sleep 2
+shot pin01-diagram
+key 106
+sleep 2
+shot pin02-logo
+key 106
+sleep 2
+shot pin03-wrap-banner
+key 105
+sleep 2
+shot pin04-back-logo
+key 60
+sleep 2
+shot pin05-library
