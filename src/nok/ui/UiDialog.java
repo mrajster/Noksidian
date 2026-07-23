@@ -278,8 +278,17 @@ public final class UiDialog {
         }
 
         protected void keyPressed(int key) {
-            if (key == Ui.LSK || key == Ui.MSK) {
+            if (key == Ui.LSK) {
                 finish(true);
+                return;
+            }
+            // Filtered: one E71 Enter press arrives as two key events, and the
+            // twin would otherwise confirm again on the screen this dialog
+            // just handed control back to.
+            if (key == Ui.MSK || key == 10 || key == 13) {
+                if (UiScreen.confirmAccepted(key)) {
+                    finish(true);
+                }
                 return;
             }
             if (key == Ui.RSK) {
@@ -293,7 +302,9 @@ public final class UiDialog {
                 ga = 0;
             }
             if (ga == Canvas.FIRE) {
-                finish(true);
+                if (UiScreen.confirmAccepted(key)) {
+                    finish(true);
+                }
             }
         }
 

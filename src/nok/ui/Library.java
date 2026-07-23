@@ -1,6 +1,8 @@
 package nok.ui;
 
 import java.util.Calendar;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.Vector;
 
 import javax.microedition.lcdui.Font;
@@ -80,6 +82,30 @@ public final class Library extends UiScreen
     private int scroll;
     /** Ticker text under the title, or null for no ticker band at all. */
     private String status;
+
+    /**
+     * Live type-ahead search, or null when none is running. Held as typed (not
+     * lowercased) because it is also what the "find:" pill shows.
+     */
+    private String find;
+    /** When the last search character arrived; see FIND_MS. */
+    private long findMs;
+    /**
+     * How long a search stays open between keystrokes. Long enough to type a
+     * word on a thumbboard without the buffer resetting mid-name, short enough
+     * that coming back to the phone later starts a fresh search rather than
+     * appending to whatever was typed before.
+     */
+    private static final long FIND_MS = 2000;
+    /**
+     * One timer for the screen's life, re-armed on every search keystroke, so
+     * the "find:" pill disappears by itself when the window lapses. Without it
+     * nothing repaints after the last keystroke and the pill would sit there
+     * claiming a search that has already expired. Held so hideNotify can stop
+     * the thread when the library is not on screen.
+     */
+    private Timer findTimer;
+    private TimerTask findTask;
 
     /** Target of a pending rename prompt. */
     private String renameRel;
@@ -233,6 +259,8 @@ public final class Library extends UiScreen
             listH = 0;
         }
         paintList(g, cx, listY, cw, listH);
+        // After the rows, so the pill floats over them rather than under.
+        paintFind(g, cx, listY, cw, listH);
     }
 
     /**
@@ -407,11 +435,258 @@ public final class Library extends UiScreen
     // ------------------------------------------------------------------
 
     protected void onUp() {
+        find = null;
         move(-1);
     }
 
     protected void onDown() {
+        find = null;
         move(1);
+    }
+
+    // ------------------------------------------------------------------
+    // Type-ahead
+    // ------------------------------------------------------------------
+
+    /**
+     * Typing letters jumps to the matching entry, the way a desktop file list
+     * does. Characters accumulate into {@link #find} until the user pauses for
+     * FIND_MS or moves the cursor by hand, so "re" reaches "README.md" while a
+     * later "n" starts a fresh search rather than extending a stale one.
+     *
+     * <p>A character that would match nothing is dropped instead of being
+     * appended: a single typo would otherwise wedge the search until the
+     * timeout, with every following keystroke silently discarded.
+     */
+    protected void onChar(char c) {
+        long now = System.currentTimeMillis();
+        String base = (find != null && live(now)) ? find : "";
+        // A separator cannot OPEN a search: nearly every name holds a space or
+        // a dot, so one stray press of either would jump the cursor to an
+        // unrelated row behind a pill whose contents are invisible. Mid-word
+        // they are ordinary search characters ("sync setup").
+        if (base.length() == 0 && !opensSearch(c)) {
+            return;
+        }
+        String next = base + c;
+        int hit = match(next);
+        if (hit < 0) {
+            // Nothing matches the extended search. A lone character still gets
+            // a chance as a fresh search, which is what makes typing the first
+            // letter of another file work without waiting out the timeout -
+            // but not for a separator, for the reason above.
+            if (base.length() > 0 && opensSearch(c)) {
+                next = "" + c;
+                hit = match(next);
+            }
+            if (hit < 0) {
+                return;
+            }
+        }
+        find = next;
+        findMs = now;
+        sel = hit;
+        armFindExpiry();
+        repaint();
+    }
+
+    /**
+     * Clear shortens a running search, so a mistyped last letter costs one
+     * keypress to undo. With no search running it stays inert, as it was
+     * before type-ahead existed - the ".." row and the right soft key are the
+     * documented ways out of a folder, and a Clear that navigated would be a
+     * surprise for anyone who pressed it out of habit.
+     */
+    protected void onBackspace() {
+        if (find == null || !live(System.currentTimeMillis())) {
+            return;
+        }
+        if (find.length() <= 1) {
+            find = null;
+            repaint();
+            return;
+        }
+        find = find.substring(0, find.length() - 1);
+        findMs = System.currentTimeMillis();
+        int hit = match(find);
+        if (hit >= 0) {
+            sel = hit;
+        }
+        armFindExpiry();
+        repaint();
+    }
+
+    /**
+     * (Re-)arms the one-shot repaint that retires the pill. The task is
+     * replaced rather than the Timer, so a whole word typed at speed still
+     * costs exactly one thread. The FIND_MS margin makes it fire just AFTER
+     * live() starts answering false, so the repaint it triggers is the one
+     * that finds the search already expired.
+     */
+    private void armFindExpiry() {
+        if (findTimer == null) {
+            findTimer = new Timer();
+        }
+        if (findTask != null) {
+            findTask.cancel();
+        }
+        findTask = new TimerTask() {
+            public void run() {
+                // Written from the timer thread and read by paint; the race is
+                // benign - both agree the search is over, and the worst case
+                // is one repaint that draws no pill (same as the caret blink).
+                find = null;
+                repaint();
+            }
+        };
+        findTimer.schedule(findTask, FIND_MS + 100);
+    }
+
+    /** Stops the expiry timer; safe to call repeatedly. */
+    private void stopFindExpiry() {
+        if (findTask != null) {
+            findTask.cancel();
+            findTask = null;
+        }
+        if (findTimer != null) {
+            findTimer.cancel();
+            findTimer = null;
+        }
+    }
+
+    // A backgrounded library must not keep a timer thread alive; the search is
+    // dropped with it, which is right - coming back to the screen later should
+    // start a fresh one.
+    protected void hideNotify() {
+        find = null;
+        stopFindExpiry();
+    }
+
+    /**
+     * Whether a search started at findMs is still open at now. The negative
+     * test is not paranoia: System.currentTimeMillis is the wall clock and a
+     * network time correction can step it BACKWARDS, which would make the
+     * elapsed time negative and keep a minutes-old search alive (and its pill
+     * on screen) instead of expiring it. UiScreen.confirmAccepted guards the
+     * same way for the same reason.
+     */
+    private boolean live(long now) {
+        long since = now - findMs;
+        return since >= 0 && since <= FIND_MS;
+    }
+
+    /** Characters allowed to start a type-ahead (see onChar). */
+    private static boolean opensSearch(char c) {
+        return c != ' ' && c != '.';
+    }
+
+    /**
+     * Row index for the search string q, or -1 when nothing matches. Three
+     * passes, best first: a name that STARTS with q, then one whose later word
+     * starts with q ("sync" finds "Obsidian sync setup.md"), then a plain
+     * substring. Folders are matched on their bare name, without the trailing
+     * '/' the listing carries, so typing "no" reaches "notes/".
+     */
+    private int match(String q) {
+        Vector labs = labels;
+        int n = labs.size();
+        String needle = q.toLowerCase();
+        int word = -1;
+        int any = -1;
+        for (int i = 0; i < n; i++) {
+            String lab = (String) labs.elementAt(i);
+            if (lab == null || "..".equals(lab)) {
+                continue;
+            }
+            if (lab.endsWith("/")) {
+                lab = lab.substring(0, lab.length() - 1);
+            }
+            String hay = lab.toLowerCase();
+            if (hay.startsWith(needle)) {
+                return i;
+            }
+            int at = hay.indexOf(needle);
+            if (at < 0) {
+                continue;
+            }
+            // EVERY occurrence is examined, not just the first: in
+            // "Resync my sync setup.md" the first hit sits mid-word and the
+            // word-start hit is the second one, and testing only the first
+            // would hand the row to the substring pass and let an earlier
+            // mid-word row win.
+            if (word < 0) {
+                int at2 = at;
+                while (at2 > 0) {
+                    char prev = hay.charAt(at2 - 1);
+                    if (prev == ' ' || prev == '-' || prev == '_') {
+                        word = i;
+                        break;
+                    }
+                    at2 = hay.indexOf(needle, at2 + 1);
+                    if (at2 < 0) {
+                        break;
+                    }
+                }
+            }
+            if (any < 0) {
+                any = i;
+            }
+        }
+        return (word >= 0) ? word : any;
+    }
+
+    /**
+     * Draws the live search as a small pill over the list, so the jumping
+     * cursor has a visible cause. Nothing is drawn once the search has lapsed,
+     * and the timer started in onChar guarantees a repaint at that moment so
+     * the pill cannot outlive the search it describes.
+     *
+     * <p>Two placement rules earn their keep: the label is clipped to the body
+     * width (a long query would otherwise run off the right edge and hide the
+     * letters just typed, which are the ones the user is checking), and the
+     * pill moves to the TOP of the list whenever the selected row is in the
+     * bottom band - the row the search just found is the last thing that
+     * should be covered by the pill announcing it.
+     */
+    private void paintFind(Graphics g, int cx, int cy, int cw, int ch) {
+        String q = find;
+        if (q == null || !live(System.currentTimeMillis())) {
+            return;
+        }
+        Font f = Font.getFont(Font.FACE_PROPORTIONAL, Font.STYLE_PLAIN,
+                Font.SIZE_SMALL);
+        int ph = f.getHeight() + 6;
+        // Widest the pill may be: the body less a margin on both sides.
+        int maxW = cw - 16;
+        if (maxW < 24) {
+            maxW = (cw > 24) ? cw : 24;
+        }
+        String label = Ui.clip("find: " + q, f, maxW - 14);
+        int pw = f.stringWidth(label) + 14;
+        if (pw > maxW) {
+            pw = maxW;
+        }
+        int px = cx + cw - pw - 8;
+        if (px < cx) {
+            px = cx;
+        }
+        // Bottom by default; top when the cursor is down there. rowH mirrors
+        // paintList's own geometry (font height + 4).
+        int rowH = Font.getFont(Font.FACE_PROPORTIONAL, Font.STYLE_PLAIN,
+                Theme.bodySize).getHeight() + 4;
+        int selY = cy + sel * rowH - scroll;
+        boolean selLow = (selY + rowH > cy + ch - ph - 12);
+        int py = selLow ? (cy + 6) : (cy + ch - ph - 6);
+        if (py < cy) {
+            py = cy;
+        }
+        g.setColor(Theme.bg2);
+        g.fillRoundRect(px, py, pw, ph, 8, 8);
+        g.setColor(Theme.accent);
+        g.drawRoundRect(px, py, pw - 1, ph - 1, 8, 8);
+        g.setFont(f);
+        g.setColor(Theme.text);
+        g.drawString(label, px + 7, py + 3, Graphics.TOP | Graphics.LEFT);
     }
 
     /**
@@ -430,15 +705,22 @@ public final class Library extends UiScreen
         repaint();
     }
 
+    // Every deliberate action ends the type-ahead: once the user has acted on
+    // the row they searched for, the next letter should start a new search
+    // instead of extending the one that got them there.
+
     protected void onSelect() {
+        find = null;
         openSelected();
     }
 
     protected void onRightSoft() {
+        find = null;
         openSelected();
     }
 
     protected void onLeftSoft() {
+        find = null;
         new UiMenu(m, this, MENU, this).show();
     }
 

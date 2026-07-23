@@ -8,6 +8,7 @@ import javax.microedition.lcdui.Font;
 import javax.microedition.lcdui.Graphics;
 
 import nok.NoksidianMIDlet;
+import nok.core.MdList;
 import nok.core.Path;
 
 /**
@@ -40,7 +41,7 @@ import nok.core.Path;
  * nok.ui.Editor is a thin subclass kept only for constructor compatibility;
  * NoksidianMIDlet.editNote constructs UiEditor directly.
  */
-public class UiEditor extends UiScreen implements UiMenuOwner {
+public class UiEditor extends UiScreen implements UiMenuOwner, UiSymbolOwner {
 
     /**
      * Hard ceiling on editable note length, in characters. A note is live in
@@ -217,6 +218,24 @@ public class UiEditor extends UiScreen implements UiMenuOwner {
         repaint();
     }
 
+    /**
+     * Inserts a whole string at the caret. Only used for edits that are not a
+     * single keystroke (the Enter key's list marker, a picked symbol), so it
+     * always clears the incremental-rewrap hint: incrementalRewrap is written
+     * for a one-character delta and cannot describe this one.
+     */
+    private void insertString(String s) {
+        if (s == null || s.length() == 0) {
+            return;
+        }
+        buf.insert(caret, s);
+        caret += s.length();
+        editPos = -1;
+        modified = true;
+        dirty = true;
+        repaint();
+    }
+
     // Every key handler below no-ops while tooLarge: the buffer is empty and
     // the screen only exists until the dialog callback replaces it, so
     // accepting input would edit (and could later save) a note that was never
@@ -335,12 +354,106 @@ public class UiEditor extends UiScreen implements UiMenuOwner {
         if (tooLarge) {
             return;
         }
-        String[] items = new String[4];
+        String[] items = new String[5];
         items[0] = "Save";
         items[1] = "Cancel";
-        items[2] = "Word wrap? (n/a)";
-        items[3] = "Go to top";
+        items[2] = "Insert symbol";
+        items[3] = "Word wrap? (n/a)";
+        items[4] = "Go to top";
         new UiMenu(m, this, items, this).show();
+    }
+
+    /**
+     * A device key the dispatcher could not place opens the symbol grid -
+     * unless it is one of the S60 system keys below.
+     *
+     * <p>MIDP reserves negative codes for device-specific keys but assigns
+     * none of them a name, so there is no portable constant for a Ctrl or Chr
+     * key and no way to learn a handset's numbers except by pressing them.
+     * Everything the editor actually uses - soft keys, the d-pad, Clear,
+     * Enter and every printable character - has already been claimed and
+     * returned by the time this runs, so what is left is a key with nothing
+     * else to do here.
+     *
+     * <p>Real-E71 finding (v1.2.0): the QWERTY SHIFT key reaches a Canvas as
+     * the S60 Edit key, code -50, sent before every capital letter - so the
+     * original "any unclaimed key" rule popped the grid on Shift. The keys
+     * this hook was hoping to catch, Ctrl and Chr, are consumed by the OS on
+     * that handset and never reach Java at all; there the grid is opened from
+     * the Menu. The hook stays for handsets that do deliver such a key.
+     */
+    protected void onKeyOther(int keyCode) {
+        if (tooLarge) {
+            return;
+        }
+        // Ctrl+I. Modifier keys themselves never reach Java here, but on
+        // QWERTY E-series firmware a Ctrl+letter chord arrives as the ASCII
+        // control character, and Ctrl+I (= 9) is the one convention with
+        // history: J2ME Polish bound it as its "add symbol" key on the
+        // E61/E63/E70 family. It cannot collide with typing - Ui.isChar
+        // starts at 32, and the E71 has no Tab key to produce a 9 otherwise.
+        if (keyCode == 9) {
+            showSymbols();
+            return;
+        }
+        if (keyCode >= 0 || isSystemKey(keyCode)) {
+            return;
+        }
+        showSymbols();
+    }
+
+    /**
+     * Keys with system meanings of their own, which must never raise a popup:
+     * -10/-11 Send and End (call handling), -50 the S60 Edit key (the E71's
+     * Shift, see onKeyOther), and -26/-36/-37 - camera and side-volume codes
+     * on Sony Ericsson JP6+ handsets, excluded defensively for portability
+     * (S60 itself delivers no volume or camera codes to a Canvas).
+     */
+    private static boolean isSystemKey(int k) {
+        return k == -10 || k == -11 || k == -26
+                || k == -36 || k == -37 || k == -50;
+    }
+
+    /**
+     * Long-press SPACE opens the symbol grid. This is the one key gesture the
+     * E71 actually has to give: Ctrl and Chr never reach Java on this handset,
+     * Ctrl+letter chords died with the E61 generation, Shift is the Edit key
+     * (-50, needed for capitals), and every other key types. Holding space is
+     * free - UiScreen.keyRepeated deliberately never repeats printable
+     * characters, so the hold previously did nothing at all.
+     *
+     * <p>The space the initial press typed is deleted first, so the gesture
+     * leaves no residue in the note; onBackspace does that with the same
+     * bookkeeping as the Clear key. Once the grid is current, further repeat
+     * events from the still-held key land on it (which ignores them), so the
+     * gesture cannot re-fire.
+     */
+    protected void keyRepeated(int keyCode) {
+        if (!tooLarge && keyCode == ' ') {
+            if (caret > 0 && buf.charAt(caret - 1) == ' ') {
+                onBackspace();
+            }
+            showSymbols();
+            return;
+        }
+        super.keyRepeated(keyCode);
+    }
+
+    /** Opens the symbol grid over this screen. */
+    private void showSymbols() {
+        new UiSymbols(m, this, this).show();
+    }
+
+    /**
+     * UiSymbolOwner: the picked character is inserted exactly as if it had been
+     * typed, so it coalesces with the surrounding text, marks the note modified
+     * and takes the same incremental-rewrap path as any other keystroke.
+     */
+    public void symbolPicked(char c) {
+        if (tooLarge) {
+            return;
+        }
+        insertChar(c);
     }
 
     protected void onRightSoft() {
@@ -352,14 +465,182 @@ public class UiEditor extends UiScreen implements UiMenuOwner {
 
     /**
      * FIRE / Select AND the Enter key both arrive here (UiScreen routes
-     * keyCodes 10/13 to onSelect). In the editor this inserts a newline, which
-     * is the mandatory Enter behavior; Save stays on the right soft key + Menu.
+     * keyCodes 10/13 to onSelect, and suppresses the duplicate event S60 sends
+     * for one Enter press, so this runs exactly once per key). Inserts ONE
+     * newline, carrying the current line's list or quote marker onto it the way
+     * a desktop markdown editor does; Save stays on the right soft key + Menu.
+     *
+     * <p>Two rules, both from nok.core.MdList:
+     * <ul>
+     *   <li>a line that opened a list continues it - "- x" gives "- ",
+     *       "3. x" gives "4. ", "- [x] x" gives "- [ ] ", "&gt; x" gives
+     *       "&gt; " - and the marker is ordinary text the user can rub out
+     *       with Clear if this line was not meant to be an item;</li>
+     *   <li>Enter on an item that is still EMPTY ends the list instead of
+     *       stacking another dead marker, which is the only way out of a list
+     *       that does not involve deleting characters by hand.</li>
+     * </ul>
      */
     protected void onSelect() {
         if (tooLarge) {
             return;
         }
-        insertChar('\n');
+        int ls = lineStart();
+        int le = lineEnd();
+        // Inside a fenced code block every marker is literal text the viewer
+        // prints verbatim, so neither rule applies: Enter is just a newline.
+        // (MdList is line-local by design and cannot see the fence itself.)
+        if (inFence(ls)) {
+            insertString("\n");
+            return;
+        }
+        String line = span(ls, le);
+        // Enter at the end of a bare marker: drop the marker, stay put. The
+        // caret test keeps this to the case the user can actually see - with
+        // text still to the right of the caret the line is being split, not
+        // abandoned.
+        if (caret == le && MdList.isBare(line)) {
+            // Keep a CRLF note's '\r': deleting it too would leave this one
+            // line ending in a bare LF while the rest of the file stays CRLF.
+            int del = le;
+            if (del > ls && buf.charAt(del - 1) == '\r') {
+                del--;
+            }
+            buf.delete(ls, del);
+            caret = ls;
+            editPos = -1;
+            modified = true;
+            dirty = true;
+            repaint();
+            return;
+        }
+        insertString("\n" + MdList.nextPrefixAt(line, caret - ls));
+    }
+
+    /**
+     * True when the line starting at ls sits inside a fenced code block, using
+     * the SAME rules as Md.readFence so the editor and the viewer never
+     * disagree about what is code:
+     * <ul>
+     *   <li>an opener is a line indented less than 4 columns (tab = 2, as in
+     *       Md.indentCols) whose trimmed text starts with three or more of
+     *       '`' or '~'; its fence character and run length are remembered;</li>
+     *   <li>a closer is a line of NOTHING but that same character, at least as
+     *       long as the opener. So a ``` line inside a ~~~ block - a code
+     *       sample showing markdown - does not end it, an info string
+     *       ("```java") never closes anything, and a shorter run does not
+     *       close a longer fence.</li>
+     * </ul>
+     * A fence left open at the end of the note stays open, which is what
+     * Md.readFence does when it runs off the last line.
+     *
+     * <p>Walks the raw buffer instead of splitting it into lines: this runs on
+     * one keypress, and materializing a note's worth of Strings to answer a
+     * yes/no question would be the most expensive thing Enter does. The scan
+     * is O(caret), well inside the full re-wrap the same keypress forces.
+     *
+     * <p>Known gap, shared with nothing else in the app: Md.parse also treats
+     * a 4-column-indented run as code, and skips %% comment blocks, and this
+     * scan judges neither. Both need the block state of everything above the
+     * line, which is a second parser; the cost of being wrong is one unwanted
+     * marker the user can rub out with Clear.
+     */
+    private boolean inFence(int ls) {
+        char fc = 0;        // fence character of the open block, 0 = none open
+        int flen = 0;       // its run length
+        int i = 0;
+        while (i < ls) {
+            // Column indent of this line, and the index of its first
+            // non-blank character.
+            int j = i;
+            int sp = 0;
+            while (j < ls) {
+                char ic = buf.charAt(j);
+                if (ic == ' ') {
+                    sp++;
+                } else if (ic == '\t') {
+                    sp += 2;
+                } else {
+                    break;
+                }
+                j++;
+            }
+            // Length of the run of one fence character starting there, and
+            // whether anything else follows it on the line (trailing blanks
+            // do not count - Md compares the TRIMMED line).
+            int end = j;
+            while (end < ls && buf.charAt(end) != '\n') {
+                end++;
+            }
+            int run = 0;
+            char c = (j < end) ? buf.charAt(j) : 0;
+            if (c == '`' || c == '~') {
+                int k = j;
+                while (k < end && buf.charAt(k) == c) {
+                    k++;
+                    run++;
+                }
+                // Trailing whitespace (and a CR from a CRLF note) is trimmed
+                // away before Md looks at the line, so it must not count as
+                // "something after the run" either.
+                int t = end;
+                while (t > k) {
+                    char tc = buf.charAt(t - 1);
+                    if (tc == ' ' || tc == '\t' || tc == '\r') {
+                        t--;
+                    } else {
+                        break;
+                    }
+                }
+                boolean bare = (k >= t);
+                if (fc != 0) {
+                    if (c == fc && run >= flen && bare) {
+                        fc = 0;
+                        flen = 0;
+                    }
+                } else if (run >= 3 && sp < 4) {
+                    fc = c;
+                    flen = run;
+                }
+            }
+            // Skip to the start of the next line. A buffer that does not end
+            // in '\n' just ends the loop, since i then lands on ls itself.
+            i = end + 1;
+        }
+        return fc != 0;
+    }
+
+    /** Index of the first character of the logical line holding the caret. */
+    private int lineStart() {
+        int i = caret;
+        while (i > 0 && buf.charAt(i - 1) != '\n') {
+            i--;
+        }
+        return i;
+    }
+
+    /** Index of the '\n' ending the caret's logical line, or the buffer end. */
+    private int lineEnd() {
+        int n = buf.length();
+        int i = caret;
+        while (i < n && buf.charAt(i) != '\n') {
+            i++;
+        }
+        return i;
+    }
+
+    /**
+     * buf[from,to) as a String. Walks the characters rather than calling
+     * buf.toString().substring: the buffer holds the whole note (up to
+     * MAX_LEN), and copying all of it to read one line would be a 200k-char
+     * allocation on every Enter, on a ~2MB heap.
+     */
+    private String span(int from, int to) {
+        StringBuffer sb = new StringBuffer(to - from);
+        for (int i = from; i < to; i++) {
+            sb.append(buf.charAt(i));
+        }
+        return sb.toString();
     }
 
     public void menuSelect(String item, int index) {
@@ -367,6 +648,8 @@ public class UiEditor extends UiScreen implements UiMenuOwner {
             doSave();
         } else if ("Cancel".equals(item)) {
             doCancel();
+        } else if ("Insert symbol".equals(item)) {
+            showSymbols();
         } else if ("Word wrap? (n/a)".equals(item)) {
             // Placeholder command (contract item): wrap is always on here.
             UiDialog.info(m, this, "Word wrap", "Word wrap is always on.");

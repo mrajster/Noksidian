@@ -511,8 +511,16 @@ public final class ImageView extends Canvas implements CommandListener {
             m.back();
             return;
         }
-        if (key == Ui.LSK || key == Ui.MSK) {
+        if (key == Ui.LSK) {
             toggleFit();
+            return;
+        }
+        // Filtered: S60 sends one centre/Enter press as two key events, which
+        // would toggle fit twice and leave the view exactly as it started.
+        if (key == Ui.MSK || key == 10 || key == 13) {
+            if (UiScreen.confirmAccepted(key)) {
+                toggleFit();
+            }
             return;
         }
         int ga;
@@ -522,7 +530,9 @@ public final class ImageView extends Canvas implements CommandListener {
             ga = 0;
         }
         if (ga == Canvas.FIRE) {
-            toggleFit();
+            if (UiScreen.confirmAccepted(key)) {
+                toggleFit();
+            }
             return;
         }
         if (fit) {

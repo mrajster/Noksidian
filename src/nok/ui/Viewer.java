@@ -1988,7 +1988,12 @@ public final class Viewer extends Canvas {
                 moveFocus(1);
             }
         } else if (ga == Canvas.FIRE) {
-            activateFocus();
+            // Shared confirm filter: the E71 delivers one Enter as two events,
+            // and following a wikilink twice would push the same note onto the
+            // stack twice (or open a link on the note it just opened).
+            if (UiScreen.confirmAccepted(key)) {
+                activateFocus();
+            }
         }
     }
 

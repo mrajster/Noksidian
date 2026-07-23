@@ -296,8 +296,18 @@ public final class UiMenu {
             // key (MSK) does not reliably map to FIRE, and soft keys have no
             // game action at all. Returning here also stops a centre press that
             // does map to FIRE from choosing twice.
-            if (key == Ui.LSK || key == Ui.MSK) {
+            if (key == Ui.LSK) {
                 choose();
+                return;
+            }
+            // The centre key and Enter go through the shared confirm filter:
+            // S60 sends one press as two events, and the second would arrive
+            // after choose() has already swapped in the back screen - landing
+            // as a phantom select on whatever the chosen command opened.
+            if (key == Ui.MSK || key == 10 || key == 13) {
+                if (UiScreen.confirmAccepted(key)) {
+                    choose();
+                }
                 return;
             }
             if (key == Ui.RSK) {
@@ -318,7 +328,9 @@ public final class UiMenu {
             } else if (ga == Canvas.DOWN) {
                 move(1);
             } else if (ga == Canvas.FIRE) {
-                choose();
+                if (UiScreen.confirmAccepted(key)) {
+                    choose();
+                }
             }
         }
 
