@@ -191,6 +191,28 @@ Full-screen themed editor:
   Fn+Chr plane) and Symbian's FEP consumes it before Java — device-tested v1.2.1, research-
   confirmed. The Menu item "Insert symbol" remains the guaranteed trigger. UiEditor implements UiSymbolOwner: symbolPicked(c)
   inserts c at the caret exactly like a typed character.
+- Native-input replication (S60 FEP conventions, researched against AknFep/Edwin sources and the
+  E71 user guide; long-press Space stays bound to the symbol grid):
+  * SELECTION: pencil/Shift (-50) held + arrows extends a selection from an anchor (chars via
+    LEFT/RIGHT, lines via UP/DOWN); Menu "Select" arms the same mode for handsets whose Shift
+    never reaches Java. Releasing Shift KEEPS the highlight; a plain arrow collapses to the edge
+    it points at (no extra move); Clear deletes the selection; typing/Enter/symbol replaces it.
+    Painted per visual line as a Theme.selBg fill measured with substringWidth.
+  * CLIPBOARD: app-internal static String (session-wide, like the native clipboard but with no
+    system interop - MIDP cannot reach it). Menu shows Copy/Cut over a selection, Select
+    otherwise, Paste when non-empty. Copy KEEPS the highlight (native). LONG-PRESS SHIFT swaps
+    the soft keys to Copy/Paste while held (native CcpuSupport); release restores Menu/Save.
+  * CASE MACHINE (never lowercases a delivered char - OS shift always wins): sentence case per
+    nok.core.Caps (field start, line start, after . ! ? + space, after a bare list/quote marker;
+    suppressed inside code fences), Settings "Auto-capitalise" (edit.autocap, default 1). Shift
+    TAP while armed vetoes the pending capital; tap otherwise = one-shot capital; double tap
+    within 500ms = caps lock; single tap drops the lock. Mode chip top-right of the body:
+    "Select" / "ABC" / "Abc".
+  * Shift+Clear = forward delete (the FEP's Delete-key stand-in).
+  * LONG-PRESS Fn plane: holding a character key swaps the just-typed char for its blue Fn
+    character - the REAL E71 plane, a phone-pad cluster: r t y f g h v b n m -> 1..0 and
+    u j i k , . -> * # + - ; : (FN_BASE/FN_ALT in UiEditor). Unmapped keys keep their letter and
+    never auto-repeat. Guard is case-blind (auto-cap may have upper-cased the letter).
 - Guard huge notes: if content length > 200000, show a UiDialog "note too large to edit" and call
   m.openNote(rel) instead (m/Library checks before constructing too).
 - No native TextBox anywhere.

@@ -8,8 +8,10 @@ import javax.microedition.lcdui.Font;
 import javax.microedition.lcdui.Graphics;
 
 import nok.NoksidianMIDlet;
+import nok.core.Caps;
 import nok.core.MdList;
 import nok.core.Path;
+import nok.sys.Config;
 
 /**
  * Themed full-screen multi-line note editor (CONTRACTS-UI.md).
@@ -93,6 +95,46 @@ public class UiEditor extends UiScreen implements UiMenuOwner, UiSymbolOwner {
     private int editPos = -1;
     private int editDelta;
 
+    // ---- native-input replication (S60 FEP conventions) ----
+    /**
+     * Selection anchor as a buffer index, -1 for no selection. The selection
+     * is [min(anchor,caret), max(anchor,caret)); anchor == caret means armed
+     * but empty. Grown by arrows while the E71's Shift (the S60 pencil key,
+     * raw code -50) is held - the native pencil-select gesture - or while
+     * selMode is on for handsets/emulators whose Shift never reaches Java.
+     */
+    private int selAnchor = -1;
+    /** Sticky select toggled from the Menu; any edit or plain arrow ends it. */
+    private boolean selMode;
+    /** The Shift/pencil key (-50) is currently down (keyReleased clears). */
+    private boolean shiftHeld;
+    /**
+     * One-shot auto-cap override: a Shift TAP while the shift is armed tells
+     * the FEP "lowercase after all", and the same tap does here. Cleared by
+     * the next typed character.
+     */
+    private boolean capsSkip;
+    /** One-shot opposite case from a Shift tap outside a sentence start. */
+    private boolean oneShot;
+    /** Caps lock from a double Shift tap; every letter upper-cased until off. */
+    private boolean capsLock;
+    /** When the last completed Shift TAP happened (for the double-tap test). */
+    private long shiftTapMs;
+    /** An arrow moved while Shift was held: the hold selected, not tapped. */
+    private boolean shiftUsed;
+    /**
+     * Long-press Shift is showing the native CcpuSupport soft keys
+     * (left "Copy" over a selection, right "Paste" with a clipboard);
+     * releasing the key restores the ordinary Menu/Save captions.
+     */
+    private boolean ccpu;
+    /**
+     * App-wide clipboard for Copy/Cut/Paste, static so text survives across
+     * notes the way the native clipboard survives across editors. Session
+     * only - nothing persists it.
+     */
+    private static String clipboard;
+
     // caret blink
     private Timer blinkTimer;
     private boolean caretOn = true;
@@ -154,6 +196,16 @@ public class UiEditor extends UiScreen implements UiMenuOwner, UiSymbolOwner {
 
     protected void hideNotify() {
         stopBlink();
+        // The pencil key's RELEASE goes to whichever displayable is current,
+        // so a popup, a phone call or an app switch mid-hold would strand
+        // shiftHeld (arrows selecting forever, Clear deleting forward) and
+        // ccpu (both soft keys hijacked). Losing the screen ends the hold.
+        shiftHeld = false;
+        if (ccpu) {
+            ccpu = false;
+            leftLabel = "Menu";
+            rightLabel = "Save";
+        }
     }
 
     /**
@@ -193,6 +245,76 @@ public class UiEditor extends UiScreen implements UiMenuOwner, UiSymbolOwner {
         caretOn = true;
     }
 
+    // ---- selection ---------------------------------------------------------
+
+    private boolean hasSel() {
+        // Self-heal: an anchor past the buffer end is stale by definition (a
+        // mutation shrank the buffer under an armed selection). Dropping it
+        // here, at the one gate every reader goes through, makes a phantom
+        // selection structurally impossible rather than a per-caller duty.
+        if (selAnchor > buf.length()) {
+            selAnchor = -1;
+        }
+        return selAnchor >= 0 && selAnchor != caret;
+    }
+
+    private int selStart() {
+        return (selAnchor < caret) ? selAnchor : caret;
+    }
+
+    private int selEnd() {
+        return (selAnchor < caret) ? caret : selAnchor;
+    }
+
+    private void clearSel() {
+        selAnchor = -1;
+        selMode = false;
+    }
+
+    /** Deletes the selected range, leaving the caret at its start. */
+    private void deleteSel() {
+        int st = selStart();
+        buf.delete(st, selEnd());
+        caret = st;
+        clearSel();
+        editPos = -1;
+        modified = true;
+        dirty = true;
+        repaint();
+    }
+
+    /**
+     * Arrow-key preamble shared by all four directions: while selecting
+     * (pencil key held, or Menu > Select) make sure the anchor exists and let
+     * the move extend the range; otherwise a plain arrow first COLLAPSES an
+     * existing selection to the edge the arrow points at - precisely what a
+     * native S60 field does - and reports the move as already handled.
+     *
+     * @param toStart where a collapsing arrow parks the caret
+     * @return true when the arrow was consumed by the collapse
+     */
+    private boolean selArrow(boolean toStart) {
+        if (shiftHeld || selMode) {
+            if (shiftHeld) {
+                shiftUsed = true;      // this hold selects; no tap semantics
+            }
+            if (selAnchor < 0) {
+                selAnchor = caret;
+            }
+            return false;              // caller moves the caret, extending
+        }
+        if (hasSel()) {
+            caret = toStart ? selStart() : selEnd();
+            if (caret > buf.length()) {
+                caret = buf.length();  // caret contract: within [0, length]
+            }
+            clearSel();
+            repaint();
+            return true;
+        }
+        return false;
+    }
+
     // ---- editing -----------------------------------------------------------
 
     /**
@@ -202,6 +324,7 @@ public class UiEditor extends UiScreen implements UiMenuOwner, UiSymbolOwner {
      * entirely in those and converts back to old indices itself.
      */
     private void insertChar(char c) {
+        clearSel();                    // any edit ends an armed selection
         // dirty already set => a prior edit's layout has not run yet, so the
         // cached wrap is stale by more than this one char: force a full rewrap.
         boolean coalesced = dirty;
@@ -228,6 +351,7 @@ public class UiEditor extends UiScreen implements UiMenuOwner, UiSymbolOwner {
         if (s == null || s.length() == 0) {
             return;
         }
+        clearSel();
         buf.insert(caret, s);
         caret += s.length();
         editPos = -1;
@@ -246,11 +370,78 @@ public class UiEditor extends UiScreen implements UiMenuOwner, UiSymbolOwner {
         if (tooLarge) {
             return;
         }
+        if (shiftHeld) {
+            // A character typed while the pencil key is down is a HARDWARE
+            // shift chord (the OS already upper-cased it). The hold is being
+            // used for typing, so its release must not read as a tap - that
+            // was arming phantom one-shots after every chorded capital, and
+            // two quick capitals were latching caps lock.
+            shiftUsed = true;
+        }
+        if (hasSel()) {
+            deleteSel();               // typing replaces the selection
+        } else {
+            clearSel();
+        }
+        // Case pipeline, replicating the FEP's order and its one iron rule:
+        // NEVER lowercase a delivered character - the OS applied any
+        // hardware shift before we saw it, and that always wins. Caps lock
+        // (double Shift tap) upper-cases everything; a one-shot Shift tap
+        // upper-cases this letter only; otherwise sentence case applies
+        // unless a Shift tap vetoed it (capsSkip) or the caret sits inside
+        // a fenced code block, where case is code, not prose.
+        if (Character.isLowerCase(c)) {
+            if (capsLock) {
+                c = Character.toUpperCase(c);
+            } else if (oneShot) {
+                c = Character.toUpperCase(c);
+            } else if (!capsSkip && autoCapArmed()) {
+                c = Character.toUpperCase(c);
+            }
+        }
+        // Letters consume the one-shot states; anything else leaves them in
+        // place, so a veto (or a one-shot) typed "across" a space or an Fn
+        // digit still applies to the letter it was meant for - the armed
+        // sentence start persists across those characters too.
+        if (Character.isLowerCase(c) || Character.isUpperCase(c)) {
+            oneShot = false;
+            capsSkip = false;
+        }
         insertChar(c);
     }
 
     protected void onBackspace() {
         if (tooLarge) {
+            return;
+        }
+        if (hasSel()) {
+            deleteSel();               // Clear wipes the whole selection
+            return;
+        }
+        // An armed-but-empty anchor (Menu > Select before any movement, or a
+        // pencil-hold arrow that could not move) must not survive the edits
+        // below: left in place it becomes a phantom selection over text the
+        // user never chose, which the next keystroke would delete.
+        clearSel();
+        // Shift+Clear deletes FORWARD - the native FEP's stand-in for a
+        // Delete key. Same incremental-rewrap bookkeeping as the backward
+        // branch below, with the caret staying put.
+        if (shiftHeld) {
+            shiftUsed = true;
+            if (caret < buf.length()) {
+                boolean coalesced = dirty;
+                boolean wasNL = buf.charAt(caret) == '\n';
+                buf.delete(caret, caret + 1);
+                if (!coalesced && !wasNL) {
+                    editPos = caret;
+                    editDelta = -1;
+                } else {
+                    editPos = -1;
+                }
+                modified = true;
+                dirty = true;
+                repaint();
+            }
             return;
         }
         if (caret > 0) {
@@ -275,7 +466,7 @@ public class UiEditor extends UiScreen implements UiMenuOwner, UiSymbolOwner {
     // ---- caret movement ----------------------------------------------------
 
     protected void onLeftArrow() {
-        if (tooLarge) {
+        if (tooLarge || selArrow(true)) {
             return;
         }
         if (caret > 0) {
@@ -285,7 +476,7 @@ public class UiEditor extends UiScreen implements UiMenuOwner, UiSymbolOwner {
     }
 
     protected void onRightArrow() {
-        if (tooLarge) {
+        if (tooLarge || selArrow(false)) {
             return;
         }
         if (caret < buf.length()) {
@@ -299,7 +490,7 @@ public class UiEditor extends UiScreen implements UiMenuOwner, UiSymbolOwner {
     // indices and can stay ignorant of the wrap.
 
     protected void onUp() {
-        if (tooLarge) {
+        if (tooLarge || selArrow(true)) {
             return;
         }
         ensureLayout();
@@ -310,7 +501,7 @@ public class UiEditor extends UiScreen implements UiMenuOwner, UiSymbolOwner {
     }
 
     protected void onDown() {
-        if (tooLarge) {
+        if (tooLarge || selArrow(false)) {
             return;
         }
         ensureLayout();
@@ -354,12 +545,36 @@ public class UiEditor extends UiScreen implements UiMenuOwner, UiSymbolOwner {
         if (tooLarge) {
             return;
         }
-        String[] items = new String[5];
-        items[0] = "Save";
-        items[1] = "Cancel";
-        items[2] = "Insert symbol";
-        items[3] = "Word wrap? (n/a)";
-        items[4] = "Go to top";
+        if (ccpu) {
+            if (hasSel()) {
+                clipboard = span(selStart(), selEnd());
+                repaint();
+            }
+            return;
+        }
+        // Built per open because the middle entries depend on live state:
+        // Copy/Cut exist only over a selection, Select only without one, and
+        // Paste only once the clipboard holds something. Dispatch stays by
+        // string in menuSelect, so order here is free to vary.
+        Vector it = new Vector();
+        it.addElement("Save");
+        it.addElement("Cancel");
+        it.addElement("Insert symbol");
+        if (hasSel()) {
+            it.addElement("Copy");
+            it.addElement("Cut");
+        } else {
+            it.addElement("Select");
+        }
+        if (clipboard != null && clipboard.length() > 0) {
+            it.addElement("Paste");
+        }
+        it.addElement("Word wrap? (n/a)");
+        it.addElement("Go to top");
+        String[] items = new String[it.size()];
+        for (int i = 0; i < items.length; i++) {
+            items[i] = (String) it.elementAt(i);
+        }
         new UiMenu(m, this, items, this).show();
     }
 
@@ -396,10 +611,67 @@ public class UiEditor extends UiScreen implements UiMenuOwner, UiSymbolOwner {
             showSymbols();
             return;
         }
+        // The Shift/pencil key going DOWN. The hold's meaning is decided by
+        // what happens before the release: arrows -> selection, first
+        // keyRepeated -> the native long-press Copy/Paste soft keys, a bare
+        // release -> a tap (case handling, resolved in keyReleased).
+        if (keyCode == -50) {
+            shiftHeld = true;
+            shiftUsed = false;
+            return;
+        }
         if (keyCode >= 0 || isSystemKey(keyCode)) {
             return;
         }
         showSymbols();
+    }
+
+    /**
+     * The pencil key's release closes whichever gesture the hold turned out
+     * to be. Selection stays (a native field keeps its highlight when Shift
+     * comes up; the next plain arrow or edit ends it), the temporary
+     * Copy/Paste soft keys are torn down, and a hold that did NOTHING else
+     * was a TAP, which carries the FEP's case semantics: while the
+     * auto-shift is armed it vetoes the pending capital, otherwise one tap
+     * arms a one-shot capital and a second tap within half a second turns
+     * it into caps lock ("abc -> Abc -> ABC", the native cycle).
+     */
+    protected void keyReleased(int keyCode) {
+        if (keyCode != -50) {
+            return;
+        }
+        shiftHeld = false;
+        if (ccpu) {
+            ccpu = false;
+            leftLabel = "Menu";
+            rightLabel = "Save";
+            repaint();
+            return;
+        }
+        if (shiftUsed || tooLarge) {
+            return;                    // the hold selected; not a tap
+        }
+        long now = System.currentTimeMillis();
+        long gap = now - shiftTapMs;
+        shiftTapMs = now;
+        if (gap >= 0 && gap < 500) {
+            capsLock = !capsLock;      // double tap: caps lock on/off
+            oneShot = false;
+            repaint();
+            return;
+        }
+        // Priority order matters: caps lock must yield to a single tap from
+        // ANY position (being stuck in ABC at a sentence start was
+        // inescapable when the armed test ran first), then the armed capital
+        // can be vetoed, then a plain tap arms the one-shot.
+        if (capsLock) {
+            capsLock = false;          // single tap drops the lock
+        } else if (autoCapArmed()) {
+            capsSkip = !capsSkip;      // veto (or restore) the armed capital
+        } else {
+            oneShot = !oneShot;        // one-shot capital for the next letter
+        }
+        repaint();
     }
 
     /**
@@ -430,13 +702,98 @@ public class UiEditor extends UiScreen implements UiMenuOwner, UiSymbolOwner {
      */
     protected void keyRepeated(int keyCode) {
         if (!tooLarge && keyCode == ' ') {
+            if (shiftHeld) {
+                shiftUsed = true;      // a chorded hold is not a tap
+            }
             if (caret > 0 && buf.charAt(caret - 1) == ' ') {
-                onBackspace();
+                takeBack();
             }
             showSymbols();
             return;
         }
+        // Long-press SHIFT: the native CcpuSupport gesture. Holding the
+        // pencil key swaps the soft keys to Copy (left, only over a
+        // selection) and Paste (right, only with a clipboard) until it is
+        // released. First repeat only; ccpu latches until keyReleased.
+        if (keyCode == -50) {
+            if (!ccpu) {
+                ccpu = true;
+                shiftUsed = true;      // a long press is not a tap
+                leftLabel = hasSel() ? "Copy" : null;
+                rightLabel = (clipboard != null && clipboard.length() > 0)
+                        ? "Paste" : null;
+                repaint();
+            }
+            return;
+        }
+        // Long-press of a character key types its blue Fn character, as the
+        // native FEP does when a key is held. The map is the REAL E71 Fn
+        // plane (user guide + photographed units): the digits sit in a
+        // phone-pad cluster on r t y / f g h / v b n / m, with * # + - ; :
+        // / & ! on their neighbours - NOT along the top row. Keys with no
+        // blue legend keep their letter, and never auto-repeat, exactly like
+        // the native editor. The just-typed character is taken back first,
+        // so the hold leaves only the Fn character; only the FIRST repeat
+        // fires, because after the swap the guard no longer matches.
+        int d = fnChar(keyCode);
+        if (!tooLarge && d != 0) {
+            // Case-blind compare: auto-capitalization (or the OS shift) may
+            // have upper-cased the letter the press typed, and the hold must
+            // still claim it - "R" from a held r becomes "1" like "r" does.
+            if (caret > 0 && Character.toLowerCase(buf.charAt(caret - 1))
+                    == Character.toLowerCase((char) keyCode)) {
+                if (shiftHeld) {
+                    shiftUsed = true;  // a chorded hold is not a tap
+                }
+                takeBack();
+                insertChar((char) d);
+            }
+            return;
+        }
         super.keyRepeated(keyCode);
+    }
+
+    // The E71 Fn plane, keyed by the DELIVERED base character (letters
+    // case-blind). Index-parallel strings rather than a table object: this
+    // is consulted on every key repeat and CLDC has no static map literal.
+    private static final String FN_BASE = "rtyfghvbnmujik,.";
+    private static final String FN_ALT = "1234567890*#+-;:";
+
+    /** The held key's blue Fn character, or 0 when it has no legend. */
+    private static int fnChar(int k) {
+        char c = Character.toLowerCase((char) k);
+        int i = FN_BASE.indexOf(c);
+        return (i >= 0) ? FN_ALT.charAt(i) : 0;
+    }
+
+    /**
+     * Removes the character before the caret - the one a long-press's own
+     * keyPressed just typed. Deliberately NOT onBackspace(): that method now
+     * means "the Clear key", whose Shift-held mode deletes FORWARD, and a
+     * long-press with Shift down was destroying the character after the
+     * caret while leaving the typed letter in place. This helper always
+     * takes back exactly the typed character.
+     */
+    private void takeBack() {
+        if (caret > 0) {
+            buf.delete(caret - 1, caret);
+            caret--;
+            editPos = -1;
+            modified = true;
+            dirty = true;
+        }
+    }
+
+    /**
+     * The auto-shift is armed: the setting is on, the caret sits at a
+     * sentence start, and it is not inside a code fence. The ONE test used
+     * by the case pipeline, the pencil-tap semantics and the mode chip, so
+     * they can never disagree about whether a capital is pending.
+     */
+    private boolean autoCapArmed() {
+        return "1".equals(Config.get("edit.autocap", "1"))
+                && Caps.sentenceStart(buf, caret)
+                && !inFence(lineStart());
     }
 
     /** Opens the symbol grid over this screen. */
@@ -453,11 +810,23 @@ public class UiEditor extends UiScreen implements UiMenuOwner, UiSymbolOwner {
         if (tooLarge) {
             return;
         }
+        if (hasSel()) {
+            deleteSel();
+        }
         insertChar(c);
     }
 
     protected void onRightSoft() {
         if (tooLarge) {
+            return;
+        }
+        if (ccpu) {
+            if (clipboard != null && clipboard.length() > 0) {
+                if (hasSel()) {
+                    deleteSel();
+                }
+                insertString(clipboard);
+            }
             return;
         }
         doSave();
@@ -485,6 +854,9 @@ public class UiEditor extends UiScreen implements UiMenuOwner, UiSymbolOwner {
         if (tooLarge) {
             return;
         }
+        if (hasSel()) {
+            deleteSel();               // Enter replaces the selection...
+        }                              // ...then behaves normally below
         int ls = lineStart();
         int le = lineEnd();
         // Inside a fenced code block every marker is literal text the viewer
@@ -500,6 +872,7 @@ public class UiEditor extends UiScreen implements UiMenuOwner, UiSymbolOwner {
         // text still to the right of the caret the line is being split, not
         // abandoned.
         if (caret == le && MdList.isBare(line)) {
+            clearSel();                // an edit ends an armed selection
             // Keep a CRLF note's '\r': deleting it too would leave this one
             // line ending in a bare LF while the rest of the file stays CRLF.
             int del = le;
@@ -650,10 +1023,33 @@ public class UiEditor extends UiScreen implements UiMenuOwner, UiSymbolOwner {
             doCancel();
         } else if ("Insert symbol".equals(item)) {
             showSymbols();
+        } else if ("Select".equals(item)) {
+            // Menu twin of the pencil-hold gesture, for handsets (and the
+            // emulator) whose Shift never reaches Java: arm here, then every
+            // arrow extends until an edit or a plain arrow ends it.
+            selMode = true;
+            selAnchor = caret;
+            repaint();
+        } else if ("Copy".equals(item)) {
+            // The native field keeps the highlight after Copy; only a plain
+            // arrow or an edit ends it, so Paste-over-elsewhere flows work.
+            clipboard = span(selStart(), selEnd());
+            repaint();
+        } else if ("Cut".equals(item)) {
+            clipboard = span(selStart(), selEnd());
+            deleteSel();
+        } else if ("Paste".equals(item)) {
+            if (hasSel()) {
+                deleteSel();           // paste replaces, like a native field
+            }
+            insertString(clipboard);
         } else if ("Word wrap? (n/a)".equals(item)) {
             // Placeholder command (contract item): wrap is always on here.
             UiDialog.info(m, this, "Word wrap", "Word wrap is always on.");
         } else if ("Go to top".equals(item)) {
+            // A caret teleport must not stretch a live selection across half
+            // the note - the next keystroke would delete all of it.
+            clearSel();
             caret = 0;
             topLine = 0;
             repaint();
@@ -1019,6 +1415,36 @@ public class UiEditor extends UiScreen implements UiMenuOwner, UiSymbolOwner {
             g.fillRect(cx, cy + (caretLine - topLine) * lh, cw, lh);
         }
 
+        // Selection highlight, drawn per visible line under the text: each
+        // line span is intersected with [selStart,selEnd) and the overlap
+        // measured with substringWidth, so a range spanning several wrapped
+        // rows fills each row exactly under its own characters.
+        if (hasSel()) {
+            int sLo = selStart();
+            int sHi = selEnd();
+            int sy = cy;
+            int sLast = topLine + visible;
+            if (sLast > total) {
+                sLast = total;
+            }
+            g.setColor(Theme.selBg);
+            for (int i = topLine; i < sLast; i++) {
+                int[] ln = (int[]) lines.elementAt(i);
+                int e = ln[1];
+                if (e > ln[0] && cachedText.charAt(e - 1) == '\n') {
+                    e--;
+                }
+                int a = (sLo > ln[0]) ? sLo : ln[0];
+                int b2 = (sHi < e) ? sHi : e;
+                if (b2 > a) {
+                    int x0 = cx + PAD
+                            + f.substringWidth(cachedText, ln[0], a - ln[0]);
+                    g.fillRect(x0, sy, f.substringWidth(cachedText, a, b2 - a), lh);
+                }
+                sy += lh;
+            }
+        }
+
         int last = topLine + visible;
         if (last > total) {
             last = total;
@@ -1052,6 +1478,39 @@ public class UiEditor extends UiScreen implements UiMenuOwner, UiSymbolOwner {
 
         if (total > visible) {
             Ui.drawScrollbar(g, cx + cw - SBW, cy, ch, total, visible, topLine);
+        }
+
+        // Mode chip, top-right: the navi-pane indicator a native field would
+        // show. "Select" while a selection is armed or grown; "Abc" when the
+        // next letter will be auto-capitalized. Absent otherwise, so the
+        // common typing frame pays one sentenceStart check and no drawing.
+        // Skip the whole computation when the paint is a caret-blink sliver
+        // that cannot touch the chip's top strip - autoCapArmed walks the
+        // buffer and must not run twice a second for an invisible chip.
+        if (clipTop > cy + 20) {
+            return;
+        }
+        String chip = null;
+        if (selMode || hasSel()) {
+            chip = "Select";
+        } else if (capsLock) {
+            chip = "ABC";
+        } else if (oneShot) {
+            chip = "Abc";
+        } else if (!capsSkip && autoCapArmed()) {
+            chip = "Abc";
+        }
+        if (chip != null) {
+            Font cf = Font.getFont(Font.FACE_PROPORTIONAL, Font.STYLE_PLAIN,
+                    Font.SIZE_SMALL);
+            int tw = cf.stringWidth(chip);
+            int px = cx + cw - SBW - tw - 8;
+            g.setColor(Theme.bg2);
+            g.fillRoundRect(px - 4, cy + 1, tw + 8, cf.getHeight() + 2, 6, 6);
+            g.setFont(cf);
+            g.setColor(Theme.dimText);
+            g.drawString(chip, px, cy + 2, Graphics.TOP | Graphics.LEFT);
+            g.setFont(f);
         }
     }
 

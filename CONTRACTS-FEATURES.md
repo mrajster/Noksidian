@@ -158,6 +158,19 @@ public final class CryptoSetup {
   PARTNER code of the press just accepted (-5 with 10/13), within 150ms, and only the FIRST such
   event - so pressing Enter and then the d-pad centre still gives two actions. Every raw-Canvas
   confirm path consults it; soft keys never do.
+- In-app update (Library Menu > "Update"): NoksidianMIDlet.checkUpdate GETs
+  {gh.api}/repos/mrajster/Noksidian/releases/latest (token sent if set, off the event thread),
+  compares tag_name to MIDlet-Version via nok.core.Ver (dotted, numeric, v-prefix tolerant,
+  tested by TestVer); if newer, a YES_NO UiDialog shows the tag + clipped release body and, on
+  Yes, hands the jar URL to platformRequest (exits if the platform demands it). Against a bridge
+  the jar is fetched through ghproxy's new /release/<owner>/<repo>/... passthrough (plain HTTP,
+  java-archive MIME); against api.github.com the asset browser_download_url is used directly.
+  The dialog owner navigates on BOTH answers (UiDialog with an owner does not restore `back`).
+- Editor native-input replication (S60 FEP): pencil/Shift(-50)-held selection + Menu Select,
+  app-internal Copy/Cut/Paste, long-press-Shift Copy/Paste soft keys, sentence-case auto-cap
+  (nok.core.Caps, Settings edit.autocap, TestCaps), Shift-tap one-shot / double-tap caps lock,
+  Shift+Clear forward delete, long-press Fn plane (E71 phone-pad digit cluster). Details in
+  CONTRACTS-UI.md; long-press Space keeps the symbol grid.
 - Library type-ahead: typed letters jump to the matching row (prefix, then word-start, then
   substring), a "find:" pill shows the search, Clear shortens it, 2s idle or any deliberate action
   resets it.

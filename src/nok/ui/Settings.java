@@ -333,6 +333,10 @@ public final class Settings extends UiScreen
                 VAL_OFF_ON, "0"));
         rows.addElement(choiceRow("Open last note", "ui.resume", OFF_ON,
                 VAL_OFF_ON, "0"));
+        // Native S60 fields default to sentence case ("Abc"); the editor
+        // replicates that, and this is its off switch.
+        rows.addElement(choiceRow("Auto-capitalise", "edit.autocap", ON_OFF,
+                VAL_ON_OFF, "1"));
         rows.addElement(textRow("Daily notes folder", "daily.folder", "Daily",
                 "Daily", false));
         // The label set here is only a seed: paintRow recomputes the text

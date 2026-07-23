@@ -13,13 +13,17 @@ import javax.microedition.midlet.MIDlet;
 
 import nok.core.Base64;
 import nok.core.Hmac;
+import nok.core.Json;
 import nok.core.NoteIndex;
 import nok.core.Path;
 import nok.core.VaultCrypto;
+import nok.core.Ver;
 import nok.sync.Sync;
 import nok.sync.SyncListener;
 import nok.sys.Config;
 import nok.sys.Files;
+import nok.sys.Http;
+import nok.sys.HttpResp;
 import nok.sys.IndexStore;
 import nok.ui.ImageView;
 import nok.ui.Library;
@@ -1239,6 +1243,167 @@ public class NoksidianMIDlet extends MIDlet implements SyncListener {
 
     public void openSettings() {
         disp.setCurrent(new Settings(this));
+    }
+
+    // ------------------------------------------------------------------
+    // In-app update check (Library menu > Update)
+    // ------------------------------------------------------------------
+
+    /** Where Noksidian's own releases live; the update check is pinned here. */
+    private static final String UPDATE_OWNER = "mrajster";
+    private static final String UPDATE_REPO = "Noksidian";
+
+    /** Re-entry guard: one release query in flight at a time. */
+    private boolean updateChecking;
+
+    /**
+     * Asks GitHub for the newest release and offers to install it. The query
+     * goes through the SAME base URL as sync (gh.api), so a phone that syncs
+     * through the TLS bridge checks for updates through it too; no token is
+     * required for a public repo, but a configured one is sent anyway - it
+     * lifts the anonymous rate limit. All network work is off the event
+     * thread; every outcome lands as a dialog over the caller's screen.
+     *
+     * <p>Saying yes hands the jar URL to platformRequest: the platform's own
+     * installer does the download and the upgrade (same MIDlet-Name+Vendor =
+     * install over, RMS and settings survive). MIDP lets the platform demand
+     * the MIDlet exit first, which is what the mustExit branch honors. The
+     * jar URL is served by the bridge's /release/ passthrough when gh.api
+     * points at a bridge, because the phone's TLS cannot reach GitHub's
+     * download hosts directly; against api.github.com proper (emulator,
+     * desktop) the asset's public browser_download_url is used as is.
+     */
+    public void checkUpdate(final Displayable back) {
+        if (updateChecking) {
+            return;
+        }
+        updateChecking = true;
+        new Thread(new Runnable() {
+            public void run() {
+                String err = null;
+                try {
+                    doUpdateCheck(back);
+                } catch (Throwable t) {
+                    err = t.toString();
+                }
+                updateChecking = false;
+                if (err != null) {
+                    UiDialog.info(NoksidianMIDlet.this, back,
+                            "Update", "Check failed: " + err);
+                }
+            }
+        }).start();
+    }
+
+    /** Worker body of checkUpdate; runs off the event thread. */
+    private void doUpdateCheck(final Displayable back) throws IOException {
+        String base = Config.get("gh.api", "https://api.github.com").trim();
+        while (base.endsWith("/")) {
+            base = base.substring(0, base.length() - 1);
+        }
+        if (base.length() == 0) {
+            base = "https://api.github.com";
+        }
+        Hashtable h = new Hashtable();
+        h.put("Accept", "application/vnd.github+json");
+        h.put("User-Agent", "Noksidian/1.0");
+        String tok = Config.get("gh.token", "").trim();
+        if (tok.length() > 0) {
+            h.put("Authorization", "token " + tok);
+        }
+        HttpResp r = Http.request("GET", base + "/repos/" + UPDATE_OWNER
+                + "/" + UPDATE_REPO + "/releases/latest", h, null);
+        if (r.code < 200 || r.code >= 300) {
+            throw new IOException("HTTP " + r.code);
+        }
+        Hashtable rel = Json.obj(Json.parse(new String(r.body)));
+        if (rel == null) {
+            throw new IOException("bad response");
+        }
+        String tag = Json.str(rel, "tag_name");
+        String notes = Json.str(rel, "body");
+        String cur = getAppProperty("MIDlet-Version");
+        if (tag == null || !Ver.newer(tag, cur)) {
+            UiDialog.info(this, back, "Update", "You are up to date.\n\n"
+                    + "Installed: " + cur
+                    + ((tag != null) ? ("\nLatest: " + tag) : ""));
+            return;
+        }
+        // Find the jar asset; its public download URL doubles as the name
+        // source for the bridge route.
+        String jarName = null;
+        String jarUrl = null;
+        Vector assets = Json.arr(rel.get("assets"));
+        for (int i = 0; assets != null && i < assets.size(); i++) {
+            Hashtable a = Json.obj(assets.elementAt(i));
+            if (a == null) {
+                continue;
+            }
+            String an = Json.str(a, "name");
+            if (an != null && an.endsWith(".jar")) {
+                jarName = an;
+                jarUrl = Json.str(a, "browser_download_url");
+                break;
+            }
+        }
+        if (jarName == null) {
+            throw new IOException("release has no jar");
+        }
+        // Bridge route unless gh.api talks to GitHub directly: the phone's
+        // TLS cannot reach the download host, the bridge's /release/ can.
+        final String dl = base.startsWith("https://api.github.com")
+                ? jarUrl
+                : base + "/release/" + UPDATE_OWNER + "/" + UPDATE_REPO
+                        + "/releases/download/" + tag + "/" + jarName;
+        // Release notes, phone-sized: CR stripped, capped so the dialog stays
+        // readable; the full text is one click away on GitHub.
+        String msg = "Installed: " + cur + "\nNew: " + tag + "\n\n"
+                + clipNotes(notes) + "\n\nInstall now?";
+        final Displayable ret = back;
+        UiDialogOwner ow = new UiDialogOwner() {
+            public void dialogResult(boolean positive) {
+                // UiDialog with an owner does NOT restore the back screen
+                // itself - the owner navigates. So BOTH answers must leave
+                // the dialog: "No" simply returns to where we came from.
+                if (!positive) {
+                    show(ret);
+                    return;
+                }
+                try {
+                    // true = the platform needs the MIDlet gone before it
+                    // can run the installer; honor it. RMS survives the
+                    // upgrade either way. If it returns false the download
+                    // proceeds in the background and we return to the vault.
+                    if (platformRequest(dl)) {
+                        exit();
+                    } else {
+                        show(ret);
+                    }
+                } catch (Throwable t) {
+                    alertErr("Update", "Installer failed: " + t);
+                }
+            }
+        };
+        new UiDialog(this, back, "Update to " + tag, msg, UiDialog.YES_NO,
+                ow).show();
+    }
+
+    /** Release notes cut to dialog size: no CRs, at most ~400 chars. */
+    private static String clipNotes(String notes) {
+        if (notes == null || notes.length() == 0) {
+            return "(no release notes)";
+        }
+        StringBuffer sb = new StringBuffer();
+        for (int i = 0; i < notes.length() && sb.length() < 400; i++) {
+            char c = notes.charAt(i);
+            if (c != '\r') {
+                sb.append(c);
+            }
+        }
+        if (sb.length() < notes.length()) {
+            sb.append("..");
+        }
+        return sb.toString();
     }
 
     public void showAbout() {

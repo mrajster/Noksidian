@@ -180,9 +180,25 @@ The full **Menu**:
 | **Delete** | Delete the selected item, after a Yes/No confirmation |
 | **Search** | Filename + full-text search across the vault ([details](#search)) |
 | **Sync now** | Ask the sync engine for an immediate pass ([details](#sync)) |
+| **Update** | Check GitHub for a newer release and offer to install it ([details](#updating)) |
 | **Settings** | Open [Settings](#settings-field-by-field) |
 | **About** | Version and credits |
 | **Exit** | Quit Noksidian |
+
+## Updating
+
+*Menu → Update* asks GitHub whether a newer Noksidian has been released.
+
+- If there is one, you get its version number and release notes, and a **Yes / No** prompt.
+  **Yes** hands the new `.jar` to the phone's own installer — it downloads and installs over the
+  current version, and your notes, settings and GitHub credentials all survive. **No** does
+  nothing and returns you to the library.
+- If you already have the newest build, it simply says so.
+
+The check uses the same **API URL** as sync, so on the E71 it goes through your TLS bridge (the
+bridge serves the release download on a `/release/…` path); pointed straight at
+`api.github.com` — say from a desktop emulator — it downloads directly. No token is required for
+the public repo, but a configured one is sent to lift the anonymous rate limit.
 
 ## Notes and folders
 
@@ -300,6 +316,27 @@ markdown punctuation (`# * _ ~ [ ] | \` and the backtick), dashes and typographi
 `• § °`, `€ £ ¥ ¢`, `± × ÷ ≈ ≠ ≤ ≥ ½ µ π` and arrows. Move with the D-pad, **Insert** places the character at the cursor, **Cancel** closes
 the grid. It learns as you go: the characters you insert most often move to the front, so after a
 while what you want is in the first row or two.
+
+**Editing like a native field.** The editor replicates the S60 text-input conventions your
+phone's own apps use:
+
+- **Selecting text:** hold **Shift** and move with the D-pad — characters left/right, whole
+  lines up/down — exactly the native pencil-select gesture. (No Shift reaching the app? *Menu →
+  Select* arms the same mode.) Release Shift and the highlight stays; a plain arrow collapses
+  it, **Clear** deletes it, and typing replaces it.
+- **Copy, Cut, Paste:** with a selection, the Menu offers *Copy* and *Cut*; *Paste* appears
+  once something is on the clipboard. Or do it the native way: **hold Shift** and the softkeys
+  become **Copy** / **Paste** for as long as you hold it. The clipboard lives inside Noksidian —
+  Symbian doesn't let Java apps at the system one.
+- **Sentence case:** the first letter after a full stop, at a line start, or on a fresh list
+  item is capitalized for you, just like the native "Abc" mode — a small **Abc** chip shows
+  when the next letter will be shifted. Tap **Shift** to veto it (or to capitalize one letter
+  mid-sentence); double-tap for **ABC** caps lock. Off switch: *Settings → Auto-capitalise*.
+  Code blocks are left alone.
+- **Shift+Clear** deletes forward, standing in for the missing Delete key.
+- **Blue characters:** hold a key to type its blue Fn character — the digits sit on
+  `r t y / f g h / v b n / m` like a phone pad, `u`=\*, `j`=#, `i`=+, `k`=-, `,`=; and `.`=:.
+  (Holding **Space** opens the symbol grid instead, as before.)
 
 There is no styling toolbar and no preview-while-typing; you type markdown, then see it
 rendered the moment you save.
@@ -453,6 +490,10 @@ contains varies by screen:
 | Right softkey | Open | Edit | Back | Save |
 | **Clear** | Shorten the type-ahead search | — | — | Delete before the cursor |
 | **Space (hold)** | — | — | — | Open the symbol grid |
+| **Shift + D-pad** | — | — | — | Select text |
+| **Shift (hold)** | — | — | — | Copy / Paste softkeys |
+| **Shift + Clear** | — | — | — | Delete forward |
+| **Letter (hold)** | — | — | — | Type its blue Fn character |
 | **0** | — | Jump to top | — | Types `0` |
 | QWERTY | Type-ahead: jump to a name | — | — | Type markdown |
 
