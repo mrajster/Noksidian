@@ -50,15 +50,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._reject()
                 return
             path = path[len(prefix) - 1:]  # strip /SECRET, keep leading /
-        # Release-artifact passthrough for the in-app updater. Release jars
-        # live on github.com (redirecting to objects.githubusercontent.com),
-        # which the api-only forwarder below cannot reach and the phone's TLS
-        # cannot either - so /release/<owner>/<repo>/releases/download/... is
-        # fetched server-side (urllib follows the redirect chain) and served
-        # over plain HTTP with the MIME type the S60 installer requires.
-        if path.startswith("/release/") and self.command == "GET":
-            self._release(path[len("/release"):])
-            return
         length = int(self.headers.get("Content-Length") or 0)
         body = self.rfile.read(length) if length else None
         conn = http.client.HTTPSConnection(UPSTREAM, timeout=60)
@@ -86,35 +77,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(msg)
         finally:
             conn.close()
-
-    def _release(self, gh_path):
-        import urllib.request
-        url = "https://github.com" + gh_path
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "ghproxy"})
-            with urllib.request.urlopen(req, timeout=120) as r:
-                data = r.read()
-            if gh_path.endswith(".jar"):
-                ctype = "application/java-archive"
-            elif gh_path.endswith(".jad"):
-                ctype = "text/vnd.sun.j2me.app-descriptor"
-            else:
-                ctype = "application/octet-stream"
-            self.send_response(200)
-            self.send_header("Content-Type", ctype)
-            self.send_header("Content-Length", str(len(data)))
-            self.send_header("Connection", "close")
-            self.end_headers()
-            self.wfile.write(data)
-        except Exception as e:
-            msg = ('{"message":"release fetch failed: %s"}'
-                   % str(e).replace('"', "'")).encode()
-            self.send_response(502)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(msg)))
-            self.send_header("Connection", "close")
-            self.end_headers()
-            self.wfile.write(msg)
 
     do_GET = do_POST = do_PUT = do_DELETE = do_PATCH = _forward
 

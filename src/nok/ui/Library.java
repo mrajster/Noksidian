@@ -49,7 +49,7 @@ public final class Library extends UiScreen
     // place the wording lives.
     private static final String[] MENU = {
         "New note", "New folder", "Rename", "Delete", "Search",
-        "Today", "Sync now", "Update", "Settings", "About", "Exit"
+        "Today", "Sync now", "Settings", "About", "Exit"
     };
 
     // Prompt modes. All four commands reuse one UiInput screen, so the mode is
@@ -770,8 +770,6 @@ public final class Library extends UiScreen
             openToday();
         } else if ("Sync now".equals(item)) {
             syncNow();
-        } else if ("Update".equals(item)) {
-            m.checkUpdate(this);
         } else if ("Settings".equals(item)) {
             m.openSettings();
         } else if ("About".equals(item)) {

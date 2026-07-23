@@ -180,25 +180,9 @@ The full **Menu**:
 | **Delete** | Delete the selected item, after a Yes/No confirmation |
 | **Search** | Filename + full-text search across the vault ([details](#search)) |
 | **Sync now** | Ask the sync engine for an immediate pass ([details](#sync)) |
-| **Update** | Check GitHub for a newer release and offer to install it ([details](#updating)) |
 | **Settings** | Open [Settings](#settings-field-by-field) |
 | **About** | Version and credits |
 | **Exit** | Quit Noksidian |
-
-## Updating
-
-*Menu → Update* asks GitHub whether a newer Noksidian has been released.
-
-- If there is one, you get its version number and release notes, and a **Yes / No** prompt.
-  **Yes** hands the new `.jar` to the phone's own installer — it downloads and installs over the
-  current version, and your notes, settings and GitHub credentials all survive. **No** does
-  nothing and returns you to the library.
-- If you already have the newest build, it simply says so.
-
-The check uses the same **API URL** as sync, so on the E71 it goes through your TLS bridge (the
-bridge serves the release download on a `/release/…` path); pointed straight at
-`api.github.com` — say from a desktop emulator — it downloads directly. No token is required for
-the public repo, but a configured one is sent to lift the anonymous rate limit.
 
 ## Notes and folders
 

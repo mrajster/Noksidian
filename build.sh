@@ -86,7 +86,7 @@ cat > build/MANIFEST.MF <<EOF
 MIDlet-1: Noksidian, /icon.png, nok.NoksidianMIDlet
 MIDlet-Name: Noksidian
 MIDlet-Vendor: winsucker
-MIDlet-Version: 1.3.0
+MIDlet-Version: 1.3.1
 MIDlet-Icon: /icon.png
 MIDlet-Description: Obsidian-style markdown vault with GitHub sync
 MicroEdition-Configuration: CLDC-1.1
@@ -109,7 +109,7 @@ cat > dist/Noksidian.jad <<EOF
 MIDlet-1: Noksidian, /icon.png, nok.NoksidianMIDlet
 MIDlet-Name: Noksidian
 MIDlet-Vendor: winsucker
-MIDlet-Version: 1.3.0
+MIDlet-Version: 1.3.1
 MIDlet-Icon: /icon.png
 MIDlet-Description: Obsidian-style markdown vault with GitHub sync
 MIDlet-Jar-URL: Noksidian.jar
