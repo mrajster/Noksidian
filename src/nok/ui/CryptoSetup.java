@@ -7,6 +7,7 @@ import javax.microedition.lcdui.Graphics;
 
 import nok.NoksidianMIDlet;
 import nok.core.Sha256;
+import nok.core.Utf8;
 import nok.core.VaultCrypto;
 import nok.sys.Config;
 import nok.sys.Files;
@@ -773,15 +774,12 @@ public final class CryptoSetup {
     }
 
     /**
-     * UTF-8 bytes. CLDC guarantees the encoding exists, but the checked
-     * exception still has to be caught; the default-encoding fallback is
-     * unreachable in practice.
+     * UTF-8 bytes of the passphrase, fed straight into PBKDF2. Uses
+     * nok.core.Utf8 so an accented or non-Latin passphrase hashes to the same
+     * bytes here as in the desktop tools/nokcrypt.py reference - a mismatch
+     * would derive a different key and lock the vault the phone just created.
      */
     private static byte[] utf8(String s) {
-        try {
-            return s.getBytes("UTF-8");
-        } catch (java.io.UnsupportedEncodingException e) {
-            return s.getBytes();
-        }
+        return Utf8.encode(s);
     }
 }

@@ -11,6 +11,7 @@ import nok.core.Json;
 import nok.core.Merge;
 import nok.core.MergeResult;
 import nok.core.Path;
+import nok.core.Utf8;
 import nok.core.VaultCrypto;
 import nok.sys.Config;
 import nok.sys.Files;
@@ -1213,31 +1214,18 @@ public final class Sync {
     }
 
     // UTF-8 is the vault's on-disk encoding everywhere, and the only encoding
-    // merge results and state.json are ever written in. The catch clauses are
-    // belt and braces: MIDP 2.0 requires UTF-8 support, but a stack that
-    // throws UnsupportedEncodingException must not take down a whole pass -
-    // the default-charset fallback mangles non-ASCII, which still beats
-    // aborting the sync.
+    // merge results and state.json are ever written in. Both directions go
+    // through nok.core.Utf8 rather than the platform codec: it is CESU-8
+    // tolerant and byte-identical to J2SE for well-formed input, so an
+    // emoji-named path in state.json or an astral char in a merged note
+    // survives a decode/encode cycle on the phone. Utf8 also null-guards and
+    // never throws, which is what these two wrappers used to hand-roll.
     private static String utf8s(byte[] b) {
-        if (b == null || b.length == 0) {
-            return "";
-        }
-        try {
-            return new String(b, 0, b.length, "UTF-8");
-        } catch (Exception e) {
-            return new String(b, 0, b.length);
-        }
+        return Utf8.decode(b);
     }
 
     private static byte[] utf8b(String s) {
-        if (s == null) {
-            return new byte[0];
-        }
-        try {
-            return s.getBytes("UTF-8");
-        } catch (Exception e) {
-            return s.getBytes();
-        }
+        return Utf8.encode(s);
     }
 
     private void status(String msg) {

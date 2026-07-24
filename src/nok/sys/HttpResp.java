@@ -2,6 +2,8 @@ package nok.sys;
 
 import java.util.Hashtable;
 
+import nok.core.Utf8;
+
 /**
  * Value object for an HTTP response: status code, raw body bytes and a
  * lowercased subset of response headers.
@@ -52,19 +54,15 @@ public final class HttpResp {
         }
         // This is a second full copy of the payload - the char[] behind the
         // String costs 2 bytes per char while body is still reachable, so a
-        // 500KB response peaks around 1.5MB of the ~2MB heap. Every caller
-        // today goes through here (the GitHub API is JSON, so even getBlob's
-        // binary content arrives base64 inside a JSON body), which is why the
-        // size ceiling lives upstream in Sync.MAX_BLOB (~1.5MB) rather than
-        // in this method.
-        try {
-            return new String(body, 0, body.length, "UTF-8");
-        } catch (Exception e) {
-            // CLDC 1.1 mandates UTF-8, so this is unreachable on a conforming
-            // stack. The fallback to the platform default encoding is here so
-            // that a non-conforming one degrades to mojibake instead of killing
-            // the sync outright.
-            return new String(body, 0, body.length);
-        }
+        // 500KB response peaks around 1.5MB of the ~2MB heap. Every caller goes
+        // through here (the GitHub API is JSON, so even getBlob's binary content
+        // arrives base64 inside a JSON body), which is why the size ceiling
+        // lives upstream in Sync.MAX_BLOB (~1.5MB) rather than in this method.
+        //
+        // nok.core.Utf8, not the platform codec: response JSON carries
+        // tree-listing paths - i.e. emoji FILENAMES, which are identity here -
+        // and getBlob's encoding=="utf-8" branch reads note text out of this
+        // same string, so both must decode on the CESU-8-tolerant codec.
+        return Utf8.decode(body);
     }
 }

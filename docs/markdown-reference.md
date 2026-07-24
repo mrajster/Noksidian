@@ -37,6 +37,7 @@ notes from wikilinks), see [Reading notes in the user guide](user-guide.md#readi
   - [Tags](#tags)
   - [Comments](#comments)
   - [Backslash escapes](#backslash-escapes)
+  - [Emoji](#emoji)
 - [Not supported](#not-supported)
 
 ## Rendering at a glance
@@ -62,6 +63,7 @@ Obsidian purple (`#7C3AED`). Cheat sheet:
 | Frontmatter | small, gray | gray `--- properties ---` box with the raw lines |
 | Task checkbox | — | drawn square; filled with a check mark when done |
 | Horizontal rule | — | thin gray line |
+| Emoji | color glyph, 16x16 px | inline color icon, not text — see [Emoji](#emoji) |
 
 The focused link (D-pad left/right) gets a purple rounded outline on top of all of this.
 
@@ -443,6 +445,30 @@ markdown meaning:
 Before letters, digits or whitespace the backslash has no special meaning and simply shows
 up as text.
 
+### Emoji
+
+Real Unicode emoji render as small color glyphs instead of the empty boxes the phone's own
+fonts would otherwise draw. Coverage is the full RGI (Recommended for General Interchange)
+emoji set — not a curated subset — including flags, skin-tone modifiers, keycaps (a digit,
+`#` or `*` combined with the keycap marker), and ZWJ sequences (families, professions,
+multi-person groups, and the like) that have a dedicated composite glyph.
+
+A ZWJ sequence with no composite glyph in the pack falls back to its component emoji, drawn
+one after another — the behavior Unicode itself recommends for an unsupported combination.
+Anything the pack still can't place (an unrecognized symbol, a lone joiner with nothing to
+fall back to) is dropped silently, the same as plain text always did before this feature
+existed.
+
+Glyphs are 16x16 px and bundled inside the app — nothing is downloaded — and they appear
+wherever inline text flows: paragraphs, headings, quotes, callouts, list items, and inline
+code. At a larger [Font size](user-guide.md#look-and-feel) they upscale nearest-neighbor
+along with the surrounding text, same as everything else at that zoom.
+
+Three places still strip emoji to nothing, unchanged from before this feature: fenced
+[code blocks](#code-blocks) (raw text, never rendered), [table](#tables) cells, and
+list/library chrome — the Library's file list, dialog titles, and similar UI text outside
+the rendered note itself.
+
 ---
 
 ## Not supported
@@ -470,7 +496,7 @@ desktop Obsidian.
 | **Auto-renumbering** of ordered lists | Numbers display exactly as typed. |
 | **Custom checkboxes** (`[-]`, `[>]`, `[?]`…) | Only `[ ]`/`[x]`/`[X]` draw a checkbox; others render as a plain bullet. |
 | **Frontmatter parsing** | Shown raw in the gray properties box; `tags:`/`aliases:` there have no effect on search or link resolution. |
-| **Emoji shortcodes** (`:smile:`) | Literal text. Real Unicode emoji depend on the phone's fonts — expect boxes on the E71. |
+| **Emoji shortcodes** (`:smile:`) | Rendered as literal text — shortcodes are never expanded. Real Unicode emoji render as color glyphs instead; see [Emoji](#emoji) for exactly what's covered and where it doesn't apply. |
 | **Foldable callouts / per-type callout styling** | All callouts get the same purple box; `+`/`-` fold markers render as text. |
 
 If a note leans hard on any of the above, it still opens fine — you just read the source

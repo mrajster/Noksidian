@@ -272,6 +272,40 @@ counter descending, so untouched characters keep the built-in order.
 - `nok.ui.Viewer` / `nok.ui.ImageView` : already themed Canvases — additionally make Viewer's
   "Links" list use `UiList` (was a native List) and any Alerts use `UiDialog`. Keep them working.
 
+### Viewer inline emoji (nok.core.Emoji glyph pack)
+
+- **`K_EMOJI` (kind 7)** is a draw-item kind carrying no text/font, only an `int glyph`
+  (a nok.core.Emoji glyph id). `drawItem` blits it: at `factor == 1` a `drawRegion` of the
+  16x16 strip region straight from the page image; at `factor > 1` a cached nearest-neighbor
+  upscale (`scaledEmoji`, keyed `"E|"+glyph+"|"+factor` in the shared `glyphCache`, so evicted
+  on `setNote` like scaled text runs). The glyph paints at `x + 1`; a page/upscale that fails
+  to load leaves the box blank (never a crash, never a fallback glyph).
+- **Where emoji render:** ONLY in `flowText`, the single place span text becomes words — so
+  paragraphs, headings, quotes, callouts, list items (bullet/task/numbered) and inline code
+  chips get color emoji. `flowText` gates each position with `Emoji.maybe` then acts on
+  `Emoji.match`: a glyph hit flushes the pending text as a word (existing `flowWord` path,
+  leading/paint-lead-space semantics preserved) then emits an unbreakable emoji via `flowEmoji`;
+  an `INVISIBLE` result consumes its units and draws nothing (zero-width joiners, variation
+  selectors, unknown astral pairs, unsupported symbols vanish instead of drawing tofu); a `0`
+  leaves the char in the text run exactly as before. In no-emoji mode (`index.bin` missing or
+  corrupt) `match` returns 0 for everything, so text flows byte-for-byte as the prior release.
+- **Still strip (unchanged):** table cells (`cellRuns` → `Ui.plain`), the Library and any other
+  `Ui.plain`/`Ui.clip` caller, and fenced CODE blocks (raw text) — none reach `flowText`, so all
+  keep dropping emoji as they did before this feature.
+- **`flowEmoji` wrap semantics:** the box is `16*factor` tall and `16*factor + 2` wide (1 device
+  px breathing room each side, glyph at `x+1`); it wraps to a new line exactly like a word that
+  does not fit (leading space width if a space preceded it, `flowNewline` when it would overrun
+  `flRight`), bumps `flH` to at least `16*factor`, and registers a link hit box when inside a
+  link span. `DrawItem.h` stays `16*factor` (not the line max) — the E71 body font is 15-19px so
+  the optical mismatch is nil and the line still grows via `flH`.
+- **Page cache:** `pageCache` (`Hashtable` Integer→Image) + `pageOrder` (`Vector` LRU) bounded to
+  **8 pages** (~256KB decoded). Note-INDEPENDENT — a page is a slice of the bundled pack, not of
+  any note — so `setNote` does NOT clear it. `Image.createImage("/emoji/pN.png")` is caught for
+  IOException (permanent blank) and OutOfMemoryError (clear the whole cache, retry once, else
+  blank for this paint pass). Paint-thread only; least-recently-USED evicted, touched on each draw.
+- **Packaging:** `build.sh` copies `res/emoji` (124 strip PNGs `p0..p123` + `index.bin`) to the
+  jar root as `/emoji/*` after the icon. Adds ~630KB; the shipped jar is ~647KB (hard cap 1MB).
+
 ## NoksidianMIDlet glue changes
 
 - Replace every `Alert`/`TextBox`/`List` usage with `UiDialog`/`UiInput`/`UiList`:

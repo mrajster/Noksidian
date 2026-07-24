@@ -11,11 +11,13 @@ import javax.microedition.lcdui.Graphics;
 import javax.microedition.lcdui.Image;
 
 import nok.NoksidianMIDlet;
+import nok.core.Emoji;
 import nok.core.Md;
 import nok.core.MdBlock;
 import nok.core.MdSpan;
 import nok.core.NoteIndex;
 import nok.core.Path;
+import nok.core.Utf8;
 import nok.img.ImgProbe;
 
 /**
@@ -74,6 +76,13 @@ public final class Viewer extends Canvas {
     private static final int K_IMAGE = 4;
     private static final int K_CHECK = 5;
     private static final int K_BULLET = 6;
+    /**
+     * Inline color emoji glyph. Carries no text/font: it blits a 16x16 region
+     * of a strip page (nok.core.Emoji glyph pack) via drawItem's K_EMOJI
+     * branch, and only ever exists when the pack loaded (match() returns 0 in
+     * no-emoji mode, so flowText emits none). See flowEmoji for its geometry.
+     */
+    private static final int K_EMOJI = 7;
 
     // render flags
     // Bitmask stored in DrawItem.flags. R_UNDER/R_STRIKE apply to K_TEXT and
@@ -111,6 +120,12 @@ public final class Viewer extends Canvas {
     private static final String THUMB_DIR = "noksidian/thumbs/";
     /** Height of the self-drawn soft-key bar at the bottom. */
     private static final int SOFTH = 18;
+    /**
+     * Max decoded emoji strip pages held resident at once. Each page is one
+     * 512x16 PNG (~32KB decoded), so 8 caps the pack's paint-time footprint at
+     * ~256KB regardless of how many distinct emoji a note uses. LRU-evicted.
+     */
+    private static final int PAGE_CAP = 8;
 
     /**
      * Owning MIDlet: the route to file reads (m.readBytes, m.files), the note
@@ -167,6 +182,16 @@ public final class Viewer extends Canvas {
     private final Hashtable imgCache;
     /** Scaled text-run images, keyed text|face|style|size|color|bg|factor. */
     private final Hashtable glyphCache;
+    /**
+     * Decoded emoji strip pages, keyed Integer(pageNo) -> Image, bounded to
+     * PAGE_CAP. Unlike imgCache/glyphCache this is note-INDEPENDENT (a page is
+     * a slice of the bundled pack, not of any note), so setNote does NOT clear
+     * it - the pages a note needs are almost always already resident from the
+     * previous note. Touched (LRU) only on the paint thread via emojiPage.
+     */
+    private final Hashtable pageCache;
+    /** LRU order for pageCache: element 0 is least-recently-used. */
+    private final Vector pageOrder;
 
     private int scrollY;
     private int scrollX;      // horizontal pan, for content wider than the screen
@@ -241,6 +266,8 @@ public final class Viewer extends Canvas {
         allLinks = new Vector();
         imgCache = new Hashtable();
         glyphCache = new Hashtable();
+        pageCache = new Hashtable();
+        pageOrder = new Vector();
     }
 
     /** Parses + lays out the note, resets scroll, repaints. */
@@ -1050,9 +1077,22 @@ public final class Viewer extends Canvas {
     }
 
     /**
-     * Splits a span's text on spaces and feeds it to the wrapper word by word.
-     * There is no java.util.regex or String.split on CLDC, hence the manual
-     * scan - which also avoids allocating an array per span.
+     * Splits a span's text on spaces and feeds it to the wrapper word by word,
+     * peeling off any inline emoji as its own token so a color glyph never
+     * lands inside a wrapped/measured text word. There is no java.util.regex
+     * or String.split on CLDC, hence the manual scan - which also avoids
+     * allocating an array per span.
+     *
+     * <p>Emoji handling is confined here, the one place span text becomes
+     * words, so flowWord/flowBroken stay emoji-free and every OTHER renderer
+     * (table cells via cellRuns/Ui.plain, fenced code via addPlainText, the
+     * Library) keeps stripping exactly as before. An emoji key never spans a
+     * space, so scanning within a non-space segment is sufficient: at each
+     * position gate cheaply with Emoji.maybe, then Emoji.match - a glyph hit
+     * flushes the pending text run as a word and emits flowEmoji; INVISIBLE
+     * consumes its units and draws nothing; 0 leaves the char in the text run.
+     * In no-emoji mode match() returns 0 for everything, so text flows exactly
+     * as the current release with no extra handling.
      */
     private void flowText(String s, Font f, int color, int bg, int rflags,
             MdSpan link) {
@@ -1073,16 +1113,44 @@ public final class Viewer extends Canvas {
                 flPendingSpace = sp;
                 break;
             }
+            // Walk this non-space segment, splitting out emoji tokens. `st`
+            // marks the start of the pending text run; `segLead` stays true
+            // until the segment's first piece is placed, so only that piece
+            // takes the leading space `sp` - inner pieces are glued to their
+            // predecessor with no space between them.
             int st = i;
+            boolean segLead = true;
             while (i < n && s.charAt(i) != ' ') {
+                if (Emoji.maybe(s, i)) {
+                    int mr = Emoji.match(s, i);
+                    if (mr != 0) {
+                        if (i > st) {
+                            // A space between two words of the SAME span carries
+                            // that span's chip/underline (B15); the boundary
+                            // space before its first word does not.
+                            flowWord(s.substring(st, i), f, color, bg, rflags,
+                                    link, segLead && sp, !firstWord);
+                            firstWord = false;
+                            segLead = false;
+                        }
+                        int glyph = mr & 0xFFFF;
+                        if (glyph != Emoji.INVISIBLE) {
+                            flowEmoji(glyph, f, segLead && sp, link);
+                            firstWord = false;
+                            segLead = false;
+                        }
+                        i += (mr >>> 16);
+                        st = i;
+                        continue;
+                    }
+                }
                 i++;
             }
-            // A space between two words of the SAME span must be painted with
-            // the span's chip/underline (B15); the boundary space before the
-            // span's first word belongs to the inter-span gap and is not.
-            flowWord(s.substring(st, i), f, color, bg, rflags, link, sp,
-                    !firstWord);
-            firstWord = false;
+            if (i > st) {
+                flowWord(s.substring(st, i), f, color, bg, rflags, link,
+                        segLead && sp, !firstWord);
+                firstWord = false;
+            }
         }
     }
 
@@ -1207,6 +1275,52 @@ public final class Viewer extends Canvas {
         flX += w;
         if (h > flH) {
             flH = h;
+        }
+        flHas = true;
+    }
+
+    /**
+     * Places one inline emoji as an unbreakable K_EMOJI token. The box is
+     * 16*factor tall and (16*factor + 2) wide - 1 device px of breathing room
+     * on each side, so the glyph paints at x+1 - and wraps to a new line
+     * exactly like a word that does not fit (leading space width if a space
+     * preceded it, flowNewline when it would overrun flRight). Its height only
+     * feeds flH like any other fragment; DrawItem.h stays 16*factor rather than
+     * the line-max, because the E71 body font (15-19px) sits close enough to
+     * 16 that the optical mismatch is nil and the line grows via flH anyway. A
+     * hit box is registered when the emoji falls inside a link span, so a link
+     * whose only visible glyph is an emoji is still focusable (same as
+     * flowFrag). No font/color/bg: the glyph carries its own colour.
+     */
+    private void flowEmoji(int glyph, Font f, boolean leadingSpace,
+            MdSpan link) {
+        int gpx = 16 * factor;
+        int emw = gpx + 2;
+        int spW = (leadingSpace && flHas) ? spaceW(f) : 0;
+        // Wrap first if the token plus its leading space would overrun. On an
+        // already-empty line it is emitted regardless (emw is ~18px, far under
+        // any real flow width) rather than looping - mirrors flowBroken's
+        // empty-line fallback so the pen never stalls.
+        if (flHas && flX + spW + emw > flRight) {
+            flowNewline();
+            spW = 0;
+        }
+        if (spW > 0) {
+            flX += spW;
+        }
+        DrawItem it = new DrawItem(K_EMOJI);
+        it.x = flX;
+        it.y = flTop;
+        it.w = emw;
+        it.h = gpx;
+        it.glyph = glyph;
+        bItems.addElement(it);
+        if (link != null) {
+            addLinkBox(flX, flTop, emw, gpx, link);
+        }
+        flX += emw;
+        if (gpx > flH) {
+            flH = gpx;
         }
         flHas = true;
     }
@@ -1651,7 +1765,10 @@ public final class Viewer extends Canvas {
             // taller than the viewport is always drawn so it is never hidden
             // outright. Everything reappears in full once scrolled up.
             if (di.y + di.h > bot) {
-                if (di.kind == K_TEXT) {
+                // Emoji share a text line, so drop a straddling glyph with the
+                // text row it sits on rather than leaving it floating above the
+                // soft bar once its neighbours are suppressed.
+                if (di.kind == K_TEXT || di.kind == K_EMOJI) {
                     continue;
                 }
                 // Box-sliver suppression is for wide filled boxes (callouts);
@@ -1771,6 +1888,148 @@ public final class Viewer extends Canvas {
             // MIDP has no fillOval; a full-circle arc is the equivalent.
             g.setColor(it.color);
             g.fillArc(it.x, y, it.w, it.h, 0, 360);
+        } else if (k == K_EMOJI) {
+            drawEmoji(g, it, y);
+        }
+    }
+
+    /**
+     * Blits one emoji glyph. At factor 1 the 16x16 strip region is drawn
+     * directly from its (LRU-cached) page; at factor > 1 a cached
+     * nearest-neighbor upscale is drawn instead. The glyph paints at it.x + 1
+     * (the box carries 1px of breathing room each side) and, since it.h is
+     * exactly 16*factor, its (it.h - gpx)/2 vertical inset is 0. A page that
+     * failed to load or an upscale that OOMed leaves the 16px box blank -
+     * never a crash and never a fallback glyph.
+     */
+    private void drawEmoji(Graphics g, DrawItem it, int y) {
+        int gpx = 16 * factor;
+        int gx = it.x + 1;
+        int gy = y + (it.h - gpx) / 2;
+        if (factor > 1) {
+            Image up = scaledEmoji(it.glyph);
+            if (up != null) {
+                g.drawImage(up, gx, gy, Graphics.TOP | Graphics.LEFT);
+            }
+            return;
+        }
+        Image page = emojiPage(Emoji.pageOf(it.glyph));
+        if (page == null) {
+            return;
+        }
+        int slot = Emoji.slotOf(it.glyph);
+        // 0 == Sprite.TRANS_NONE; no import needed for the one literal.
+        g.drawRegion(page, slot * 16, 0, 16, 16, 0, gx, gy,
+                Graphics.TOP | Graphics.LEFT);
+    }
+
+    /**
+     * Returns the decoded strip page n from the LRU cache, loading and
+     * inserting it (evicting the least-recently-used page past PAGE_CAP) on a
+     * miss. Null when the page could not be loaded, which the caller treats as
+     * a blank glyph box. Paint-thread only, so no synchronization.
+     */
+    private Image emojiPage(int n) {
+        Integer key = new Integer(n);
+        Object c = pageCache.get(key);
+        if (c != null) {
+            touchPage(key);
+            return (Image) c;
+        }
+        Image img = loadPage(n);
+        if (img == null) {
+            return null;
+        }
+        if (pageCache.size() >= PAGE_CAP && !pageOrder.isEmpty()) {
+            Object lru = pageOrder.elementAt(0);
+            pageOrder.removeElementAt(0);
+            pageCache.remove(lru);
+        }
+        pageCache.put(key, img);
+        pageOrder.addElement(key);
+        return img;
+    }
+
+    /** Moves key to the most-recently-used end (linear scan, <= 8 entries). */
+    private void touchPage(Object key) {
+        for (int i = 0; i < pageOrder.size(); i++) {
+            if (pageOrder.elementAt(i).equals(key)) {
+                pageOrder.removeElementAt(i);
+                break;
+            }
+        }
+        pageOrder.addElement(key);
+    }
+
+    /**
+     * Decodes strip page n from the jar. IOException (missing/corrupt entry) is
+     * a permanent blank. OutOfMemoryError is recoverable once: drop every
+     * resident page to reclaim ~256KB and retry; if it still fails, give up for
+     * this paint pass (the glyph box stays blank, no crash).
+     */
+    private Image loadPage(int n) {
+        try {
+            return Image.createImage("/emoji/p" + n + ".png");
+        } catch (IOException e) {
+            return null;
+        } catch (OutOfMemoryError oom) {
+            pageCache.clear();
+            pageOrder.removeAllElements();
+            try {
+                return Image.createImage("/emoji/p" + n + ".png");
+            } catch (Throwable t) {
+                return null;
+            }
+        }
+    }
+
+    /**
+     * Returns the cached factor-scaled image of one emoji glyph, building it
+     * once. Shares glyphCache with scaledRun under the disjoint key
+     * "E|"+glyph+"|"+factor, so it is evicted on the same setNote lifecycle.
+     * The 16x16 region is read from its page via getRGB and integer-block
+     * upscaled with the same replication as scaledRun, then rebuilt via
+     * createRGBImage(..., true) so the glyph's alpha (its transparent
+     * background) is preserved. (MicroEmulator's LCD filter dims such images
+     * ~0.75x; that is an emulator-only artifact, irrelevant on the E71.)
+     */
+    private Image scaledEmoji(int glyph) {
+        String key = "E|" + glyph + '|' + factor;
+        Object c = glyphCache.get(key);
+        if (c != null) {
+            return (Image) c;
+        }
+        Image page = emojiPage(Emoji.pageOf(glyph));
+        if (page == null) {
+            return null;
+        }
+        try {
+            int slot = Emoji.slotOf(glyph);
+            int[] src = new int[16 * 16];
+            page.getRGB(src, 0, 16, slot * 16, 0, 16, 16);
+            int nw = 16 * factor;
+            int[] dst = new int[nw * nw];
+            // Box replication: expand each source row once, then arraycopy it
+            // down for the remaining factor-1 rows (see scaledRun).
+            for (int sy = 0; sy < 16; sy++) {
+                int so = sy * 16;
+                int drow = sy * factor * nw;
+                for (int sx = 0; sx < 16; sx++) {
+                    int p = src[so + sx];
+                    int d = drow + sx * factor;
+                    for (int i = 0; i < factor; i++) {
+                        dst[d + i] = p;
+                    }
+                }
+                for (int i = 1; i < factor; i++) {
+                    System.arraycopy(dst, drow, dst, drow + i * nw, nw);
+                }
+            }
+            Image out = Image.createRGBImage(dst, nw, nw, true);
+            glyphCache.put(key, out);
+            return out;
+        } catch (Throwable t) {
+            return null;
         }
     }
 
@@ -2225,15 +2484,10 @@ public final class Viewer extends Canvas {
 
     /** Menu > Info: path, on-disk size and word count for the open note. */
     private void showInfo() {
-        int bytes;
-        // UTF-8 byte length, so the figure matches the file on the card rather
-        // than the char count (non-ASCII notes differ). Falls back to chars if
-        // the encoding is somehow unavailable.
-        try {
-            bytes = text.getBytes("UTF-8").length;
-        } catch (Throwable t) {
-            bytes = text.length();
-        }
+        // Utf8.encode is the same encoder NoksidianMIDlet.writeText uses, so the
+        // figure matches the file on the card rather than the char count
+        // (non-ASCII and emoji notes differ); it never throws.
+        int bytes = Utf8.encode(text).length;
         int words = wordCount(text);
         String msg = "Path: " + ((rel != null) ? rel : "(none)")
                 + "\nSize: " + bytes + " bytes"
@@ -2361,11 +2615,10 @@ public final class Viewer extends Canvas {
                 b[o++] = (byte) (0x80 | (c & 0x3F));
             }
         }
-        try {
-            return new String(b, 0, o, "UTF-8");
-        } catch (Throwable t) {
-            return s;
-        }
+        // Utf8.decode is CESU-8 tolerant and never throws, so a %-escaped
+        // astral target (e.g. %F0%9F%98%80) resolves to the real emoji rather
+        // than mojibake or the raw escapes.
+        return Utf8.decode(b, 0, o);
     }
 
     private static int hexNib(char c) {
@@ -2507,6 +2760,8 @@ public final class Viewer extends Canvas {
         String text;
         Font font;
         Image image;
+        /** K_EMOJI only: glyph id into the nok.core.Emoji pack (page/slot). */
+        int glyph;
         /**
          * Lazily built nearest-neighbor upscale of this run, only ever set when
          * factor > 1. Shares the underlying Image with glyphCache, so this is a

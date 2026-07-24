@@ -58,11 +58,13 @@ find test -name '*.java' >> build/testsources.txt
 # TestVault is run with no arguments on purpose: argument-less means "run the
 # suites", whereas TestVault's main also has an interop CLI mode (desc/enc/
 # enciv/dec) used to cross-check the hand-rolled AES/PBKDF2 against Python.
-for T in TestBase64Json TestCaps TestMd TestMdList TestMergePath TestSha TestAes TestVault TestImageNav; do
-    # Same JDK 8 runtime as the compile, and a bare build/test classpath: no
+for T in TestBase64Json TestUtf8 TestCaps TestMd TestMdList TestMergePath TestSha TestAes TestVault TestImageNav TestEmoji; do
+    # Same JDK 8 runtime as the compile, and a build/test:res classpath: no
     # CLDC jars, no dist/Noksidian.jar, so nothing can accidentally resolve
-    # against a stale device build.
-    "$JDK/java" -cp build/test "$T"
+    # against a stale device build. res is on the path so TestEmoji's loader can
+    # reach the committed /emoji/index.bin exactly as the device jar exposes it
+    # (res/ is packaged at the jar root there); the other suites ignore it.
+    "$JDK/java" -cp build/test:res "$T"
 done
 # Only reachable when every suite exited 0 (see set -e above); each suite has
 # already printed its own contract-mandated "ALL PASS <n>" line.

@@ -360,12 +360,12 @@ public final class VaultCrypto {
         return outer.digest();
     }
 
+    // Utf8.encode, not the platform codec: the per-file key is HMAC'd over
+    // these bytes, so an accented or emoji path name must produce the exact
+    // same UTF-8 on the device as in the desktop tools/nokcrypt.py reference,
+    // or the two sides derive different keys and the file will not decrypt.
     private static byte[] utf8(String s) {
-        try {
-            return s.getBytes("UTF-8");
-        } catch (java.io.UnsupportedEncodingException e) {
-            throw new RuntimeException("UTF-8 unsupported: " + e.toString());
-        }
+        return Utf8.encode(s);
     }
 
     private static byte[] ascii(String s) {

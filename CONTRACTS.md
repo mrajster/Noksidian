@@ -88,6 +88,52 @@ public final class Base64 {
 }
 ```
 
+## nok.core.Utf8
+
+```java
+public final class Utf8 {
+    public static String decode(byte[] b);                    // whole array; "" for null/empty
+    public static String decode(byte[] b, int off, int len);  // window; "" for len <= 0
+    public static byte[] encode(String s);                    // "" for null/empty
+}
+```
+The single note-content, crypto and transport byte<->String codec. Every note
+read/write (`NoksidianMIDlet.readText/writeText`, the desktop-index read), the
+sync merge and `state.json` paths (`Sync.utf8s/utf8b`), the RMS path cache
+(`IndexStore`), the Info byte-count and `%`-escape decoder (`Viewer`), BOTH
+key-derivation inputs (`VaultCrypto` path key, `CryptoSetup` passphrase), and
+the GitHub HTTP/JSON transport (`HttpResp.bodyText`, and `GitHub.utf8` — which
+also encodes the literal note text on `getBlob`'s `encoding=="utf-8"` branch)
+route through it instead of `getBytes("UTF-8")` / `new String(b,"UTF-8")`. It
+exists because some Symbian CLDC VMs speak CESU-8, so the platform codec cannot
+be trusted for astral emoji in either direction — and tree-listing paths are
+emoji FILENAMES, which are identity, not cosmetic metadata.
+
+Guarantees:
+- **Byte-identical to J2SE** `getBytes("UTF-8")` / `new String(b,"UTF-8")` for
+  any WELL-FORMED input — unit-tested against the desktop JDK across a corpus,
+  which is what keeps the device interoperable with `tools/nokcrypt.py` and git.
+- **CESU-8 tolerant decode**: a 3-byte form whose value lands in U+D800..U+DFFF
+  is emitted as that surrogate half unchanged (NOT rejected), so a CESU-8
+  high+low pair reassembles into the astral char for free (a Java String is
+  UTF-16); re-encoding then yields spec 4-byte UTF-8.
+- **Never throws on malformed content.** decode() substitutes U+FFFD for any
+  malformed byte (bad or missing continuation, overlong form, value past
+  U+10FFFF, 0xF8+ lead, lone continuation) and resyncs at the next lead byte —
+  one U+FFFD per bad run (the brief's rule, not Unicode's stricter
+  maximal-subpart split). encode() substitutes U+FFFD's bytes (EF BF BD) for an
+  unpaired surrogate half (its only divergence from J2SE, and only on ill-formed
+  UTF-16). An out-of-range `off`/`len` window handed to `decode` is a caller bug,
+  not content, and can still throw ArrayIndexOutOfBounds.
+- 4-byte forms above U+FFFF are split into a surrogate pair by hand (no
+  `Character.codePointAt`); both directions size their output in one pass.
+
+The one codec left on its own path is `Path.encodeSegment`, which keeps its
+inline percent-encoder: it emits a percent triplet per byte as it goes and
+never materialises the `byte[]` `Utf8.encode` would return, so routing it
+through Utf8 would only add an intermediate array. It shares the
+surrogate-pairing arithmetic and must stay in sync.
+
 ## nok.core.Json
 
 Values are represented as: `Hashtable` (object), `Vector` (array), `String`, `Long`, `Double`,
@@ -273,6 +319,64 @@ public final class NoteIndex {
 resolve(): input may still contain `#...` or `|...` → strip them first; try (case-insensitive):
 exact relpath match; relpath + ".md"; basename match (target "Foo" matches "dir/Foo.md");
 if several basename matches, return shortest path. Sorting: simple case-insensitive compareTo.
+
+---
+
+## nok.core.Emoji  (glyph-pack loader + greedy raw emoji matcher)
+
+```java
+public final class Emoji {
+    public static final int INVISIBLE = 0xFFFF;      // "consume, draw nothing"
+    public static boolean maybe(String s, int i);    // cheap gate; no load, no alloc
+    public static int match(String s, int i);        // packed result; see below
+    public static int glyphPx();                     // 16 (0 in no-emoji mode)
+    public static int perPage();                     // 32
+    public static int pageCount();                   // number of strip PNGs
+    public static int glyphCount();                  // ids run [0, glyphCount)
+    public static int pageOf(int glyph);             // glyph / perPage
+    public static int slotOf(int glyph);             // glyph % perPage
+}
+```
+
+Loads `/emoji/index.bin` (via `Emoji.class.getResourceAsStream`) once, lazily on
+the first match/geometry call, synchronized. A missing resource, bad
+magic/version, truncated file or OOM leaves the class in a permanent **no-emoji
+mode**: match() returns 0 for everything, geometry accessors return 0. Never
+throws — the Viewer runs it per character while painting. `maybe()` never loads.
+
+**maybe(s,i)** — true iff `s.charAt(i) >= 0x2000`, OR `charAt(i)` is U+00A9
+(copyright) or U+00AE (registered) — the only two sub-0x2000 non-keycap keys in
+the pack — OR `charAt(i)` is `#`, `*` or `0`-`9` AND `i+1 < length` AND
+`charAt(i+1)` is U+FE0F or U+20E3. A deliberate over-estimate (some >= 0x2000
+punctuation passes and match() then returns 0); it must never miss a real emoji
+start, or the Viewer gates that glyph out entirely.
+
+**match(s,i)** returns a packed int:
+- `0` = no emoji at i; draw `charAt(i)` as text exactly as before the pack.
+- else `(unitsConsumed << 16) | glyphField`, where `glyphField` is a glyph id in
+  `[0, glyphCount)` to blit, or `INVISIBLE` (0xFFFF) to consume the units and
+  draw nothing. The caller always advances by `unitsConsumed`.
+
+Algorithm: greedy LONGEST raw match, no normalization. Sequence keys are tried
+from `min(maxUnits, remaining)` down to 2 (first hit wins, so skin-tone/ZWJ
+clusters beat their bare base and an RGI family is consumed whole), then the
+single-unit table. Both are binary searches over resident primitive arrays with
+**zero per-call allocation** — the note and the key blob are compared in place,
+never substringed. Aliasing is pre-baked by the generator: a fully-qualified
+sequence, its FE0F-stripped/unqualified alias and its bare single all map to the
+same glyph id; a non-RGI ZWJ cluster is not a key, so it decomposes into
+component glyphs with the joiner falling through to INVISIBLE.
+
+INVISIBLE classification (only when nothing matched) replicates
+`Ui.isUndrawable` exactly, plus U+20E3: a well-formed surrogate pair → INVISIBLE,
+2 units (unknown astral); a lone/mis-ordered surrogate half → INVISIBLE, 1;
+U+200D, U+FE00-FE0F, U+20E3, U+2600-27BF, U+2300-23FF, U+2B00-2BFF, U+2122,
+U+2139 → INVISIBLE, 1; everything else (en dash, ellipsis, ASCII, ...) → 0.
+
+Index byte layout: **`tools/gen-emoji.py`'s module docstring is authoritative**
+(magic "NKEM", version 1, big-endian, DataInputStream-readable). Resident memory
+is primitive arrays only (`char[] blob`, `int[]` offsets, `char[]` gids/singles),
+roughly 86 KB, loaded once and never freed.
 
 ---
 

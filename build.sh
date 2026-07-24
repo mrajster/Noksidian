@@ -82,11 +82,17 @@ cp res/icon.png build/pre/icon.png
 # The icon is injected after preverification, not kept in build/classes, so it
 # never passes through ProGuard as an input resource. It lands at the jar root
 # because the MIDlet-Icon attribute below refers to it as "/icon.png".
+cp -r res/emoji build/pre/emoji
+# The emoji glyph pack (124 strip PNGs p0..p123 + index.bin) is injected the
+# same way, landing at the jar root as "/emoji/*" so nok.core.Emoji can load
+# "/emoji/index.bin" and the Viewer can decode "/emoji/pN.png". Kept out of
+# build/classes for the same reason as the icon: it is a resource, not code, so
+# it must not pass through ProGuard's shrinker/preverifier as an input.
 cat > build/MANIFEST.MF <<EOF
 MIDlet-1: Noksidian, /icon.png, nok.NoksidianMIDlet
 MIDlet-Name: Noksidian
 MIDlet-Vendor: winsucker
-MIDlet-Version: 1.3.1
+MIDlet-Version: 1.4.0
 MIDlet-Icon: /icon.png
 MIDlet-Description: Obsidian-style markdown vault with GitHub sync
 MicroEdition-Configuration: CLDC-1.1
@@ -109,7 +115,7 @@ cat > dist/Noksidian.jad <<EOF
 MIDlet-1: Noksidian, /icon.png, nok.NoksidianMIDlet
 MIDlet-Name: Noksidian
 MIDlet-Vendor: winsucker
-MIDlet-Version: 1.3.1
+MIDlet-Version: 1.4.0
 MIDlet-Icon: /icon.png
 MIDlet-Description: Obsidian-style markdown vault with GitHub sync
 MIDlet-Jar-URL: Noksidian.jar

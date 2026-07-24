@@ -181,6 +181,12 @@ public final class Path {
      * to the emoji. Byte-identical to J2SE getBytes("UTF-8") for well-formed
      * input, so callers on other stacks are unaffected. Unreserved
      * A-Za-z0-9 - _ . ~ pass through.
+     *
+     * <p>This shares its surrogate-pairing arithmetic with nok.core.Utf8 (the
+     * note-content/crypto codec) but stays a separate inline encoder on
+     * purpose: it emits a percent triplet per byte as it goes and never
+     * materialises the byte[] Utf8.encode would return, so routing it through
+     * Utf8 would only add an intermediate array. Keep the two in sync.
      */
     private static void encodeSegment(String seg, StringBuffer sb) {
         int n = seg.length();
