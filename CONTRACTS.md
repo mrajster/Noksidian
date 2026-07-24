@@ -344,10 +344,12 @@ magic/version, truncated file or OOM leaves the class in a permanent **no-emoji
 mode**: match() returns 0 for everything, geometry accessors return 0. Never
 throws — the Viewer runs it per character while painting. `maybe()` never loads.
 
-**maybe(s,i)** — true iff `s.charAt(i) >= 0x2000`, OR `charAt(i)` is `#`, `*` or
-`0`-`9` AND `i+1 < length` AND `charAt(i+1)` is U+FE0F or U+20E3. A deliberate
-over-estimate (some >= 0x2000 punctuation passes and match() then returns 0); it
-must never miss a real emoji start.
+**maybe(s,i)** — true iff `s.charAt(i) >= 0x2000`, OR `charAt(i)` is U+00A9
+(copyright) or U+00AE (registered) — the only two sub-0x2000 non-keycap keys in
+the pack — OR `charAt(i)` is `#`, `*` or `0`-`9` AND `i+1 < length` AND
+`charAt(i+1)` is U+FE0F or U+20E3. A deliberate over-estimate (some >= 0x2000
+punctuation passes and match() then returns 0); it must never miss a real emoji
+start, or the Viewer gates that glyph out entirely.
 
 **match(s,i)** returns a packed int:
 - `0` = no emoji at i; draw `charAt(i)` as text exactly as before the pack.

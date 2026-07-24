@@ -56,6 +56,9 @@ public class TestEmoji {
         testAliasQualification();
         System.out.println("AliasQualification: " + (passed - before) + " checks OK");
         before = passed;
+        testCopyright();
+        System.out.println("Copyright: " + (passed - before) + " checks OK");
+        before = passed;
         testKeycap();
         System.out.println("Keycap: " + (passed - before) + " checks OK");
         before = passed;
@@ -114,6 +117,32 @@ public class TestEmoji {
         check(gid(bare) != Emoji.INVISIBLE && gid(qual) != Emoji.INVISIBLE,
               "sun not invisible");
         check(gid(bare) == gid(qual), "sun alias same glyph");
+    }
+
+    // ==================================================================
+    // sub-0x2000 non-keycap keys (copyright / registered)
+    // ==================================================================
+
+    /**
+     * U+00A9 (copyright) and U+00AE (registered) are the only two keys in the
+     * pack whose first unit is below 0x2000 and is not a keycap base, so they
+     * are the reason maybe()'s gate needs an explicit A9/AE arm - without it the
+     * Viewer would gate match() out and these glyphs (bare and +FE0F) would be
+     * unreachable. Same alias contract as the sun: bare 1 unit, fully-qualified
+     * 2, one shared glyph; and the gate must open for the bare form.
+     */
+    static void testCopyright() {
+        int bare = Emoji.match("\u00A9", 0);       // U+00A9 copyright, unqualified
+        int qual = Emoji.match("\u00A9\uFE0F", 0); // U+00A9 U+FE0F, fully-qualified
+        check(units(bare) == 1, "copyright bare units");
+        check(units(qual) == 2, "copyright qual units");
+        check(gid(bare) != Emoji.INVISIBLE && gid(qual) != Emoji.INVISIBLE,
+              "copyright not invisible");
+        check(gid(bare) == gid(qual), "copyright alias same glyph");
+        // The gate must let the bare glyph through, and still reject plain ASCII.
+        check(Emoji.maybe("\u00A9", 0), "maybe copyright true");
+        check(Emoji.maybe("\u00AE", 0), "maybe registered true");
+        check(!Emoji.maybe("a", 0), "maybe a still false");
     }
 
     // ==================================================================

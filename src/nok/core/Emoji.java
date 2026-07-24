@@ -88,9 +88,12 @@ public final class Emoji {
      * Cheap allocation-free, load-free gate the Viewer runs on every character
      * before deciding to pay for match(): true only where an emoji could
      * plausibly begin. Everything at/above U+2000 (the symbol/dingbat/surrogate
-     * planes, a superset of every key's first unit) passes, as does an ASCII
-     * keycap base (#, * or a digit) that is actually followed by a keycap member
-     * (U+FE0F or U+20E3) - the one case where a sub-0x2000 unit starts a key.
+     * planes, a superset of every key's first unit) passes, as do the two
+     * sub-0x2000 non-keycap keys the pack actually holds - U+00A9 (copyright)
+     * and U+00AE (registered) - and an ASCII keycap base (#, * or a digit) that
+     * is actually followed by a keycap member (U+FE0F or U+20E3). Those are the
+     * only cases where a sub-0x2000 unit starts a key; missing A9/AE here would
+     * make those two glyphs (and their +FE0F forms) unreachable dead weight.
      *
      * <p>Deliberately an over-estimate: plenty of >= 0x2000 punctuation (en
      * dash, smart quotes) passes here and is then rejected by match() with 0.
@@ -102,7 +105,7 @@ public final class Emoji {
             return false;
         }
         char c = s.charAt(i);
-        if (c >= 0x2000) {
+        if (c >= 0x2000 || c == 0x00A9 || c == 0x00AE) {
             return true;
         }
         if (c == '#' || c == '*' || (c >= '0' && c <= '9')) {
@@ -373,9 +376,9 @@ public final class Emoji {
                 return;
             }
             DataInputStream d = new DataInputStream(in);
-            if (d.read() != 'N' || d.read() != 'K'
-                    || d.read() != 'E' || d.read() != 'M') {
-                return;
+            if (d.readUnsignedByte() != 'N' || d.readUnsignedByte() != 'K'
+                    || d.readUnsignedByte() != 'E' || d.readUnsignedByte() != 'M') {
+                return; // short/foreign file: EOFException here also lands in no-emoji
             }
             if (d.readUnsignedByte() != 1) {
                 return; // unknown version: refuse rather than misread
