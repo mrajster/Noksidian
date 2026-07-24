@@ -322,6 +322,62 @@ if several basename matches, return shortest path. Sorting: simple case-insensit
 
 ---
 
+## nok.core.Emoji  (glyph-pack loader + greedy raw emoji matcher)
+
+```java
+public final class Emoji {
+    public static final int INVISIBLE = 0xFFFF;      // "consume, draw nothing"
+    public static boolean maybe(String s, int i);    // cheap gate; no load, no alloc
+    public static int match(String s, int i);        // packed result; see below
+    public static int glyphPx();                     // 16 (0 in no-emoji mode)
+    public static int perPage();                     // 32
+    public static int pageCount();                   // number of strip PNGs
+    public static int glyphCount();                  // ids run [0, glyphCount)
+    public static int pageOf(int glyph);             // glyph / perPage
+    public static int slotOf(int glyph);             // glyph % perPage
+}
+```
+
+Loads `/emoji/index.bin` (via `Emoji.class.getResourceAsStream`) once, lazily on
+the first match/geometry call, synchronized. A missing resource, bad
+magic/version, truncated file or OOM leaves the class in a permanent **no-emoji
+mode**: match() returns 0 for everything, geometry accessors return 0. Never
+throws — the Viewer runs it per character while painting. `maybe()` never loads.
+
+**maybe(s,i)** — true iff `s.charAt(i) >= 0x2000`, OR `charAt(i)` is `#`, `*` or
+`0`-`9` AND `i+1 < length` AND `charAt(i+1)` is U+FE0F or U+20E3. A deliberate
+over-estimate (some >= 0x2000 punctuation passes and match() then returns 0); it
+must never miss a real emoji start.
+
+**match(s,i)** returns a packed int:
+- `0` = no emoji at i; draw `charAt(i)` as text exactly as before the pack.
+- else `(unitsConsumed << 16) | glyphField`, where `glyphField` is a glyph id in
+  `[0, glyphCount)` to blit, or `INVISIBLE` (0xFFFF) to consume the units and
+  draw nothing. The caller always advances by `unitsConsumed`.
+
+Algorithm: greedy LONGEST raw match, no normalization. Sequence keys are tried
+from `min(maxUnits, remaining)` down to 2 (first hit wins, so skin-tone/ZWJ
+clusters beat their bare base and an RGI family is consumed whole), then the
+single-unit table. Both are binary searches over resident primitive arrays with
+**zero per-call allocation** — the note and the key blob are compared in place,
+never substringed. Aliasing is pre-baked by the generator: a fully-qualified
+sequence, its FE0F-stripped/unqualified alias and its bare single all map to the
+same glyph id; a non-RGI ZWJ cluster is not a key, so it decomposes into
+component glyphs with the joiner falling through to INVISIBLE.
+
+INVISIBLE classification (only when nothing matched) replicates
+`Ui.isUndrawable` exactly, plus U+20E3: a well-formed surrogate pair → INVISIBLE,
+2 units (unknown astral); a lone/mis-ordered surrogate half → INVISIBLE, 1;
+U+200D, U+FE00-FE0F, U+20E3, U+2600-27BF, U+2300-23FF, U+2B00-2BFF, U+2122,
+U+2139 → INVISIBLE, 1; everything else (en dash, ellipsis, ASCII, ...) → 0.
+
+Index byte layout: **`tools/gen-emoji.py`'s module docstring is authoritative**
+(magic "NKEM", version 1, big-endian, DataInputStream-readable). Resident memory
+is primitive arrays only (`char[] blob`, `int[]` offsets, `char[]` gids/singles),
+roughly 86 KB, loaded once and never freed.
+
+---
+
 ## nok.sys.Config  (RMS-backed key-value store; RecordStore name "nokcfg")
 
 ```java
