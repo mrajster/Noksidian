@@ -440,7 +440,7 @@ Two different symptoms, two different causes:
   no-emoji mode: notes still open fine, emoji are just stripped silently, the
   same as before this feature existed. Fix: confirm `res/emoji/index.bin`
   exists, then rebuild. The jar size itself tells you which one you have — a
-  jar with the pack is roughly 647 KB; one without it is roughly 220 KB.
+  jar with the pack is roughly 647 KB; one without it is roughly 219 KB.
 - **A handful of specific symbols are blank**, everything else renders fine:
   expected — see
   [Weird characters / encoding](#weird-characters--encoding).
