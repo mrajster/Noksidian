@@ -230,6 +230,12 @@ lists with nesting and real checkboxes, horizontal rules, tables as raw monospac
 YAML frontmatter collapsed into a gray `--- properties ---` box. `%% comments %%` are
 hidden entirely.
 
+**Emoji.** Real Unicode emoji (flags, skin tones, families, and the rest of the RGI set)
+render as small color glyphs right in the note text, instead of the empty boxes the phone's
+own fonts would draw — see the [markdown reference](markdown-reference.md#emoji) for exactly
+what's covered. This applies only to the rendered note itself; the Library's file list and
+other chrome still show emoji as plain text.
+
 **Scrolling.** D-pad **up/down** scrolls in 48 px steps. A scrollbar thumb
 on the right edge shows where you are. Press **0** (or *Menu → Top*) to jump back to the
 top of the note.

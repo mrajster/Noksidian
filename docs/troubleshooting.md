@@ -28,6 +28,7 @@ Quick index:
 | Out of memory / image placeholders | [Out of memory, big notes and images](#out-of-memory-on-big-notes-or-images) |
 | "too large to edit" | [Note too large to edit](#note-too-large-to-edit) |
 | Weird characters in notes | [Weird characters](#weird-characters--encoding) |
+| Emoji show blank / missing | [Emoji show as blank or missing](#emoji-show-as-blank-or-missing) |
 | Reset sync from scratch | [Resetting sync state safely](#resetting-sync-state-safely) |
 | Change the vault folder | [Moving a vault](#moving-a-vault) |
 | Battery drains / data usage | [Battery and data usage](#battery-and-data-usage) |
@@ -419,10 +420,36 @@ Noksidian reads and writes **UTF-8**, no exceptions. If you see garbage:
   `é`): the file isn't UTF-8 at all — it was saved as Windows-1252/Latin-1.
   Re-save as UTF-8.
 - **Correct-looking text but empty boxes for some symbols**: the character is
-  fine, the E71's fonts just have no glyph for it (rare emoji, exotic scripts).
-  Nothing to fix; the bytes are intact and sync correctly.
+  fine, the E71's fonts just have no glyph for it (exotic scripts, rare
+  dingbats). Nothing to fix; the bytes are intact and sync correctly. Most
+  emoji are not in this bucket any more — see
+  [Emoji show as blank or missing](#emoji-show-as-blank-or-missing) if it's
+  an emoji specifically.
 
 Line endings are not a problem — the parser handles both `\n` and `\r\n`.
+
+### Emoji show as blank or missing
+
+Two different symptoms, two different causes:
+
+- **Every emoji in every note is blank or missing**, not just a rare one: the
+  installed JAR was built without the emoji glyph pack. `res/emoji/` (124
+  strip PNGs + `index.bin`) must be present in the repo checkout before
+  `./build.sh` runs — the build copies it into the jar unconditionally, but a
+  jar built without that folder falls back to `nok.core.Emoji`'s permanent
+  no-emoji mode: notes still open fine, emoji are just stripped silently, the
+  same as before this feature existed. Fix: confirm `res/emoji/index.bin`
+  exists, then rebuild. The jar size itself tells you which one you have — a
+  jar with the pack is roughly 647 KB; one without it is roughly 220 KB.
+- **A handful of specific symbols are blank**, everything else renders fine:
+  expected — see
+  [Weird characters / encoding](#weird-characters--encoding).
+
+In **MicroEmulator only** (not the real E71), emoji drawn at a **Font size**
+above the phone's native pixel heights (an upscaled "N px" option) look
+slightly dimmed compared to the real device. This is the emulator's own
+color-filter artifact on upscaled images, not a bug in the glyph pack — the
+real E71 draws the same glyphs at full brightness at every size.
 
 ---
 

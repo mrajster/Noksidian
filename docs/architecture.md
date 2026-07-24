@@ -120,6 +120,8 @@ optional:
 | Image decode skipped (placeholder shown) | `Viewer` | file > 400 000 bytes |
 | Editor capacity | `UiEditor` | `MAX_LEN = 200000` chars; oversized notes open read-only |
 | HTTP body read | `Http` | streamed in 4 KB chunks, never one giant allocation |
+| Emoji index resident memory | `Emoji.ensureLoaded` | ~86 KB of primitive arrays, loaded once lazily, never freed |
+| Emoji page cache eviction (LRU) | `Viewer` `pageCache` | capped at 8 pages, ~256 KB decoded |
 
 The `Viewer` image cache (`Hashtable` src → `Image`) is scoped to the current note only
 and dropped when you navigate away.
@@ -165,6 +167,15 @@ Rules, in order of importance:
 **`Base64`** — RFC 4648 encoder/decoder. The decoder skips `\r \n space \t` anywhere and
 tolerates missing padding, because the GitHub blob API returns base64 with embedded
 newlines. Static-only, no state.
+
+**`Utf8`** — the single byte<->`String` codec for note content, crypto and transport, used
+instead of `getBytes("UTF-8")` / `new String(b,"UTF-8")` everywhere: note read/write, the
+sync merge and `state.json` paths, the RMS path cache, both key-derivation inputs, and the
+GitHub HTTP/JSON transport. Byte-identical to the J2SE codec for well-formed input, but also
+tolerant of CESU-8 (some Symbian CLDC VMs encode astral characters — including emoji — as two
+3-byte surrogate runs instead of one 4-byte sequence) and never throws on malformed bytes
+(substitutes `U+FFFD` and resyncs). It exists because the platform codec cannot be trusted
+for astral text on either the note-content or the GitHub-filename path.
 
 **`Json`** — recursive-descent JSON parser and writer over a dynamic representation:
 `Hashtable` (object), `Vector` (array), `String`, `Long`, `Double`, `Boolean`, and the
@@ -222,6 +233,17 @@ strips `#heading` / `|alias`, then tries case-insensitively: exact relpath, relp
 `.md`, then basename match (`Foo` matches `dir/Foo.md`), preferring the shortest path on
 ties. Returns `null` when nothing matches — which is how the Viewer knows to offer
 "create this note".
+
+**`Emoji`** — loads the committed glyph pack (`res/emoji/index.bin`, generated offline by
+`tools/gen-emoji.py` from Google's Noto Emoji font — see section 6) once, lazily, and does
+greedy longest-match over raw UTF-16 code units to find inline emoji: `maybe()` is a cheap,
+allocation-free gate the Viewer runs on every character; `match()` returns a packed
+(units consumed, glyph id) result, or `INVISIBLE` for zero-width joiners, variation
+selectors and unknown sequences that should be silently dropped. There is no Unicode
+normalization at runtime — every alias (fully-qualified, unqualified, skin-tone, ZWJ) is
+pre-baked into the index by the generator, so matching is two binary searches with zero
+per-call allocation. A missing or corrupt index leaves the class in a permanent no-emoji
+mode (`match()` returns 0 for everything) rather than crashing the paint loop.
 
 ### 2.3 `nok.sys` — the device layer
 
@@ -614,8 +636,9 @@ tools/jdk8/bin/java -jar tools/proguard/lib/proguard.jar \
 
 ### Stage 3 — package
 
-`res/icon.png` is copied to the *root* of the jar (referenced as `/icon.png`), then the
-jar is built with this manifest:
+`res/icon.png` and `res/emoji/` (the emoji glyph pack: 124 strip PNGs `p0..p123` plus
+`index.bin` — section 2.2) are both copied to the *root* of the jar (as `/icon.png` and
+`/emoji/*`), then the jar is built with this manifest:
 
 | Attribute | Value | What the phone does with it |
 |---|---|---|
@@ -710,6 +733,13 @@ sits on the bootclasspath legitimately.
 story too, but it runs at *use* time on the LAN, not at build time. It forwards every
 request verbatim to `https://api.github.com` — including the `Authorization` header, which
 is why the README insists on a fine-grained single-repo PAT and a trusted LAN.
+
+`tools/gen-emoji.py` (Python 3 + Pillow with `raqm`, rendering Google's Noto Color Emoji
+font — Apache License 2.0 — into `res/emoji/`) is the same kind of dev-machine-only script:
+it runs when the emoji pack needs regenerating (a new emoji-test.txt from unicode.org, a
+Pillow/font update), not during `build.sh`. Its output — 124 strip PNGs plus `index.bin` —
+is committed like any other resource and simply copied into the jar at packaging time
+(section 4); the phone never sees Pillow, raqm, or the source font.
 
 ---
 

@@ -34,7 +34,7 @@ show through. App icon: a Nokia keypad phone cradling the Obsidian crystal.
 - **Markdown viewer** with Obsidian flavor: headings, bold/italic/bold-italic, strikethrough,
   `==highlight==`, inline code + fenced code blocks, blockquotes, callouts (`> [!note]`),
   bullet/numbered/task lists with nesting, tables (monospace), horizontal rules, frontmatter
-  (shown as a properties box), `%%comments%%` (hidden).
+  (shown as a properties box), `%%comments%%` (hidden), color emoji.
 - **Links**: `[[wikilinks]]` (with `|alias` and `#heading`), markdown links, autolinks
   (open in the phone browser), `#tags` (tap to search), link navigation with the D-pad.
   Following a wikilink to a note that doesn't exist offers to create it — like Obsidian.
@@ -163,3 +163,10 @@ src/nok/sync/   GitHub REST client + the sync engine
 src/nok/ui/     canvas markdown renderer, image viewer, library, editor, settings, vault picker
 tools/          self-contained toolchain + ghproxy.py TLS bridge
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+Emoji glyphs rendered from Noto Emoji (Google), Apache License 2.0, rasterized at build
+time by `tools/gen-emoji.py`.
