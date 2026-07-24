@@ -239,6 +239,12 @@ public class TestUtf8 {
         check(half.length() == 1 && half.charAt(0) == '\uD83D', "cesu lone half");
         check(bytesEq(Utf8.encode(half),
                       bytes(new int[] { 0xEF, 0xBF, 0xBD })), "cesu lone reencode");
+        // The LOW half alone (ED B8 80 == U+DE00) is kept the same way, so a
+        // truncated CESU-8 pair missing its high half degrades symmetrically.
+        String low = Utf8.decode(bytes(new int[] { 0xED, 0xB8, 0x80 }));
+        check(low.length() == 1 && low.charAt(0) == '\uDE00', "cesu lone low");
+        check(bytesEq(Utf8.encode(low),
+                      bytes(new int[] { 0xEF, 0xBF, 0xBD })), "cesu lone low reencode");
     }
 
     // ==================================================================
@@ -285,6 +291,16 @@ public class TestUtf8 {
         // Astral value above U+10FFFF (F4 90 80 80 == U+110000) is out of range.
         String hi = Utf8.decode(bytes(new int[] { 0xF4, 0x90, 0x80, 0x80, 0x41 }));
         check(fffd(hi) == 0 && hi.endsWith("A"), "inv above-max");
+
+        // 4-byte overlong: F0 80 80 80 spells U+0000 in four bytes, but the
+        // minimum a 4-byte lead may encode is U+10000, so it is rejected.
+        String ov4 = Utf8.decode(bytes(new int[] { 0xF0, 0x80, 0x80, 0x80, 0x41 }));
+        check(ov4.equals("\uFFFDA"), "inv overlong4");
+
+        // A bad LEAD (not a continuation) resyncs cleanly into the next real
+        // sequence: FF is illegal, then C3 A9 is a proper 2-byte U+00E9.
+        String rl = Utf8.decode(bytes(new int[] { 0xFF, 0xC3, 0xA9 }));
+        check(rl.equals("\uFFFD\u00E9"), "inv resync-after-lead");
 
         // Valid text on both sides of a bad byte proves the resync is local.
         String mid = Utf8.decode(bytes(new int[] { 0x41, 0xFF, 0x42 }));

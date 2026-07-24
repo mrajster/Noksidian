@@ -97,14 +97,17 @@ public final class Utf8 {
     public static byte[] encode(String s);                    // "" for null/empty
 }
 ```
-The single note-content and crypto byte<->String codec. Every note read/write
-(`NoksidianMIDlet.readText/writeText`, the desktop-index read), the sync merge
-and `state.json` paths (`Sync.utf8s/utf8b`), the RMS path cache (`IndexStore`),
-the Info byte-count and `%`-escape decoder (`Viewer`), and BOTH key-derivation
-inputs (`VaultCrypto` path key, `CryptoSetup` passphrase) route through it
-instead of `getBytes("UTF-8")` / `new String(b,"UTF-8")`. It exists because
-some Symbian CLDC VMs speak CESU-8, so the platform codec cannot be trusted for
-astral emoji in either direction.
+The single note-content, crypto and transport byte<->String codec. Every note
+read/write (`NoksidianMIDlet.readText/writeText`, the desktop-index read), the
+sync merge and `state.json` paths (`Sync.utf8s/utf8b`), the RMS path cache
+(`IndexStore`), the Info byte-count and `%`-escape decoder (`Viewer`), BOTH
+key-derivation inputs (`VaultCrypto` path key, `CryptoSetup` passphrase), and
+the GitHub HTTP/JSON transport (`HttpResp.bodyText`, and `GitHub.utf8` — which
+also encodes the literal note text on `getBlob`'s `encoding=="utf-8"` branch)
+route through it instead of `getBytes("UTF-8")` / `new String(b,"UTF-8")`. It
+exists because some Symbian CLDC VMs speak CESU-8, so the platform codec cannot
+be trusted for astral emoji in either direction — and tree-listing paths are
+emoji FILENAMES, which are identity, not cosmetic metadata.
 
 Guarantees:
 - **Byte-identical to J2SE** `getBytes("UTF-8")` / `new String(b,"UTF-8")` for
@@ -114,19 +117,22 @@ Guarantees:
   is emitted as that surrogate half unchanged (NOT rejected), so a CESU-8
   high+low pair reassembles into the astral char for free (a Java String is
   UTF-16); re-encoding then yields spec 4-byte UTF-8.
-- **Never throws.** decode() substitutes U+FFFD for any malformed byte (bad or
-  missing continuation, overlong form, value past U+10FFFF, 0xF8+ lead, lone
-  continuation) and resyncs at the next lead byte — one U+FFFD per maximal bad
-  subpart. encode() substitutes U+FFFD's bytes (EF BF BD) for an unpaired
-  surrogate half (its only divergence from J2SE, and only on ill-formed UTF-16).
+- **Never throws on malformed content.** decode() substitutes U+FFFD for any
+  malformed byte (bad or missing continuation, overlong form, value past
+  U+10FFFF, 0xF8+ lead, lone continuation) and resyncs at the next lead byte —
+  one U+FFFD per bad run (the brief's rule, not Unicode's stricter
+  maximal-subpart split). encode() substitutes U+FFFD's bytes (EF BF BD) for an
+  unpaired surrogate half (its only divergence from J2SE, and only on ill-formed
+  UTF-16). An out-of-range `off`/`len` window handed to `decode` is a caller bug,
+  not content, and can still throw ArrayIndexOutOfBounds.
 - 4-byte forms above U+FFFF are split into a surrogate pair by hand (no
   `Character.codePointAt`); both directions size their output in one pass.
 
-Deliberately NOT routed through Utf8: the HTTP/JSON transport envelope
-(`GitHub.utf8` request body, `HttpResp.bodyText` response body) — that layer
-carries API structure, and note content crosses it base64-encoded — and
-`Path.encodeSegment`, which keeps its own inline percent-encoder (it shares the
-surrogate-pairing arithmetic and must stay in sync).
+The one codec left on its own path is `Path.encodeSegment`, which keeps its
+inline percent-encoder: it emits a percent triplet per byte as it goes and
+never materialises the `byte[]` `Utf8.encode` would return, so routing it
+through Utf8 would only add an intermediate array. It shares the
+surrogate-pairing arithmetic and must stay in sync.
 
 ## nok.core.Json
 

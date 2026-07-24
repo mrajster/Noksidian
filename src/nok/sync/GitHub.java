@@ -7,6 +7,7 @@ import java.util.Vector;
 import nok.core.Base64;
 import nok.core.Json;
 import nok.core.Path;
+import nok.core.Utf8;
 import nok.sys.Config;
 import nok.sys.Http;
 import nok.sys.HttpResp;
@@ -384,11 +385,11 @@ public final class GitHub {
         return new IOException("HTTP " + r.code + " " + msg);
     }
 
+    // nok.core.Utf8, not the platform codec: this encodes request bodies AND,
+    // via getBlob's encoding=="utf-8" branch, the literal file text of a pulled
+    // note - so an emoji note pulled on that branch must round-trip through the
+    // same CESU-8-tolerant codec the write path uses, not the untrusted stack.
     private static byte[] utf8(String s) {
-        try {
-            return s.getBytes("UTF-8");
-        } catch (Exception e) {
-            return s.getBytes();
-        }
+        return Utf8.encode(s);
     }
 }

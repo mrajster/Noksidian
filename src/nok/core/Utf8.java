@@ -23,11 +23,13 @@ package nok.core;
  *     char for free (a Java String is UTF-16, so two appended halves already
  *     ARE the code point). Re-encoding that String then yields spec 4-byte
  *     UTF-8, which is how a note typed on the phone lands correctly in git.
- * <li>Neither direction ever throws. decode() substitutes U+FFFD for any
- *     malformed byte and resyncs at the next lead byte; encode() substitutes
- *     U+FFFD's bytes (EF BF BD) for an unpaired surrogate half. Both run on the
- *     sync worker over bytes a flaky FileConnection or a corrupt repo may have
- *     mangled, and a thrown exception there aborts a whole sync pass.
+ * <li>Neither direction throws on malformed CONTENT. decode() substitutes one
+ *     U+FFFD per bad run and resyncs at the next lead byte; encode()
+ *     substitutes U+FFFD's bytes (EF BF BD) for an unpaired surrogate half.
+ *     Both run on the sync worker over bytes a flaky FileConnection or a
+ *     corrupt repo may have mangled, and a thrown exception there aborts a
+ *     whole sync pass. (An out-of-range off/len window passed to decode is a
+ *     caller bug, not content, and can still throw ArrayIndexOutOfBounds.)
  * </ul>
  *
  * <p>For any WELL-FORMED input the output is byte-identical to J2SE
@@ -59,8 +61,10 @@ public final class Utf8 {
      * surrogate halves pass through unchanged (see the class comment). Any
      * malformed byte - bad or missing continuation, overlong form, out-of-range
      * or 0xF8+ lead, lone continuation - becomes one U+FFFD, after which the
-     * loop resumes at the next byte that is not a continuation. Never throws;
-     * returns "" for null/empty/non-positive len.
+     * loop resumes at the next byte that is not a continuation (one U+FFFD per
+     * bad run, resync at the next lead byte). Never throws on the content
+     * itself; returns "" for null/empty/non-positive len. A caller that passes
+     * an off/len window outside b is a bug and may still hit AIOOBE.
      */
     public static String decode(byte[] b, int off, int len) {
         if (b == null || len <= 0) {
@@ -110,10 +114,12 @@ public final class Utf8 {
             }
             // Gather exactly the continuation bytes this lead needs. j counts
             // bytes consumed including the lead, so on a short or bad tail it is
-            // both the U+FFFD's width and the amount to advance: consuming the
-            // lead plus the valid continuations seen (the "maximal subpart")
-            // means a following non-continuation byte is left to resync as its
-            // own char rather than being eaten.
+            // both the amount to advance and the width of the bad run that the
+            // single U+FFFD below stands in for: consuming the lead plus the
+            // valid continuations seen, then resyncing at the next lead byte,
+            // leaves a following non-continuation byte to decode as its own char
+            // rather than being eaten. This is the brief's "one U+FFFD, resync
+            // at next lead" rule, not Unicode's stricter maximal-subpart split.
             int j = 1;
             boolean ok = true;
             while (j <= need) {
