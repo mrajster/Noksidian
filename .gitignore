@@ -25,3 +25,4 @@ __pycache__/
 # Third-party reference MIDlet (nnproject JTube) kept locally for manifest
 # comparison; not ours to redistribute.
 /jt2.jar
+.superpowers/
