@@ -9,6 +9,8 @@ import java.util.Vector;
 import javax.microedition.rms.RecordEnumeration;
 import javax.microedition.rms.RecordStore;
 
+import nok.core.Utf8;
+
 /**
  * RMS-backed note-index cache. Unlike the FileConnection sidecar it replaces,
  * RMS needs no JSR-75 permission, so loading/saving the index is PROMPT-FREE
@@ -157,23 +159,17 @@ public final class IndexStore {
         }
     }
 
+    // nok.core.Utf8, not the platform codec: cached paths are vault-relative
+    // names that may hold emoji, and Utf8 keeps the RMS cache byte-consistent
+    // with how the same paths are written elsewhere (never throws either).
     private static byte[] utf8(String s) {
-        try {
-            return s.getBytes("UTF-8");
-        } catch (Throwable t) {
-            return s.getBytes();
-        }
+        return Utf8.encode(s);
     }
 
     /** Splits UTF-8 cache bytes into non-empty vault paths (one per line). */
     private static Vector splitLines(byte[] data) {
         Vector v = new Vector();
-        String all;
-        try {
-            all = new String(data, "UTF-8");
-        } catch (Throwable t) {
-            all = new String(data);
-        }
+        String all = Utf8.decode(data);
         int start = 0;
         int n = all.length();
         for (int i = 0; i <= n; i++) {

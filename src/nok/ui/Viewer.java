@@ -16,6 +16,7 @@ import nok.core.MdBlock;
 import nok.core.MdSpan;
 import nok.core.NoteIndex;
 import nok.core.Path;
+import nok.core.Utf8;
 import nok.img.ImgProbe;
 
 /**
@@ -2225,15 +2226,10 @@ public final class Viewer extends Canvas {
 
     /** Menu > Info: path, on-disk size and word count for the open note. */
     private void showInfo() {
-        int bytes;
-        // UTF-8 byte length, so the figure matches the file on the card rather
-        // than the char count (non-ASCII notes differ). Falls back to chars if
-        // the encoding is somehow unavailable.
-        try {
-            bytes = text.getBytes("UTF-8").length;
-        } catch (Throwable t) {
-            bytes = text.length();
-        }
+        // Utf8.encode is the same encoder NoksidianMIDlet.writeText uses, so the
+        // figure matches the file on the card rather than the char count
+        // (non-ASCII and emoji notes differ); it never throws.
+        int bytes = Utf8.encode(text).length;
         int words = wordCount(text);
         String msg = "Path: " + ((rel != null) ? rel : "(none)")
                 + "\nSize: " + bytes + " bytes"
@@ -2361,11 +2357,10 @@ public final class Viewer extends Canvas {
                 b[o++] = (byte) (0x80 | (c & 0x3F));
             }
         }
-        try {
-            return new String(b, 0, o, "UTF-8");
-        } catch (Throwable t) {
-            return s;
-        }
+        // Utf8.decode is CESU-8 tolerant and never throws, so a %-escaped
+        // astral target (e.g. %F0%9F%98%80) resolves to the real emoji rather
+        // than mojibake or the raw escapes.
+        return Utf8.decode(b, 0, o);
     }
 
     private static int hexNib(char c) {

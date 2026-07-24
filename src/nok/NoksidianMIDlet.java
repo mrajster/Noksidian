@@ -15,6 +15,7 @@ import nok.core.Base64;
 import nok.core.Hmac;
 import nok.core.NoteIndex;
 import nok.core.Path;
+import nok.core.Utf8;
 import nok.core.VaultCrypto;
 import nok.sync.Sync;
 import nok.sync.SyncListener;
@@ -750,14 +751,10 @@ public class NoksidianMIDlet extends MIDlet implements SyncListener {
             if (b == null || b.length == 0) {
                 return null;
             }
-            String all;
-            try {
-                all = new String(b, "UTF-8");
-            } catch (Throwable t) {
-                // Device default charset as a last resort. Paths are usually
-                // ASCII, which decodes identically either way.
-                all = new String(b);
-            }
+            // Utf8.decode owns this note-content boundary: CESU-8 tolerant and
+            // never throwing, so a card whose index lists an emoji-named note
+            // decodes to the exact path the app stored.
+            String all = Utf8.decode(b);
             // Hand-rolled line split: CLDC has no String.split and no regex.
             // Both '\r' and '\n' terminate a line and empty ones are dropped,
             // so a CRLF file written by the desktop tool parses identically.
@@ -939,7 +936,7 @@ public class NoksidianMIDlet extends MIDlet implements SyncListener {
 
     public String readText(String rel) throws IOException {
         byte[] b = readBytes(rel);
-        return (b.length == 0) ? "" : new String(b, 0, b.length, "UTF-8");
+        return Utf8.decode(b);
     }
 
     /**
@@ -957,7 +954,7 @@ public class NoksidianMIDlet extends MIDlet implements SyncListener {
     }
 
     public void writeText(String rel, String text) throws IOException {
-        writeBytes(rel, text.getBytes("UTF-8"));
+        writeBytes(rel, Utf8.encode(text));
     }
 
     /**

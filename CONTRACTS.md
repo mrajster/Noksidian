@@ -88,6 +88,46 @@ public final class Base64 {
 }
 ```
 
+## nok.core.Utf8
+
+```java
+public final class Utf8 {
+    public static String decode(byte[] b);                    // whole array; "" for null/empty
+    public static String decode(byte[] b, int off, int len);  // window; "" for len <= 0
+    public static byte[] encode(String s);                    // "" for null/empty
+}
+```
+The single note-content and crypto byte<->String codec. Every note read/write
+(`NoksidianMIDlet.readText/writeText`, the desktop-index read), the sync merge
+and `state.json` paths (`Sync.utf8s/utf8b`), the RMS path cache (`IndexStore`),
+the Info byte-count and `%`-escape decoder (`Viewer`), and BOTH key-derivation
+inputs (`VaultCrypto` path key, `CryptoSetup` passphrase) route through it
+instead of `getBytes("UTF-8")` / `new String(b,"UTF-8")`. It exists because
+some Symbian CLDC VMs speak CESU-8, so the platform codec cannot be trusted for
+astral emoji in either direction.
+
+Guarantees:
+- **Byte-identical to J2SE** `getBytes("UTF-8")` / `new String(b,"UTF-8")` for
+  any WELL-FORMED input — unit-tested against the desktop JDK across a corpus,
+  which is what keeps the device interoperable with `tools/nokcrypt.py` and git.
+- **CESU-8 tolerant decode**: a 3-byte form whose value lands in U+D800..U+DFFF
+  is emitted as that surrogate half unchanged (NOT rejected), so a CESU-8
+  high+low pair reassembles into the astral char for free (a Java String is
+  UTF-16); re-encoding then yields spec 4-byte UTF-8.
+- **Never throws.** decode() substitutes U+FFFD for any malformed byte (bad or
+  missing continuation, overlong form, value past U+10FFFF, 0xF8+ lead, lone
+  continuation) and resyncs at the next lead byte — one U+FFFD per maximal bad
+  subpart. encode() substitutes U+FFFD's bytes (EF BF BD) for an unpaired
+  surrogate half (its only divergence from J2SE, and only on ill-formed UTF-16).
+- 4-byte forms above U+FFFF are split into a surrogate pair by hand (no
+  `Character.codePointAt`); both directions size their output in one pass.
+
+Deliberately NOT routed through Utf8: the HTTP/JSON transport envelope
+(`GitHub.utf8` request body, `HttpResp.bodyText` response body) — that layer
+carries API structure, and note content crosses it base64-encoded — and
+`Path.encodeSegment`, which keeps its own inline percent-encoder (it shares the
+surrogate-pairing arithmetic and must stay in sync).
+
 ## nok.core.Json
 
 Values are represented as: `Hashtable` (object), `Vector` (array), `String`, `Long`, `Double`,
